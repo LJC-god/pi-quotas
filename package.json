@@ -1,10 +1,17 @@
 {
-  "name": "@latentminds/pi-quotas",
-  "version": "0.4.0",
+  "name": "@timiliang/pi-quotas",
+  "version": "0.5.0",
+  "description": "Provider quota dashboard and active-provider footer for Pi, with Grok, GLM China, and guided OpenCode Go setup.",
   "license": "MIT",
   "type": "module",
   "private": false,
   "author": "Markus Strazds <markus@latentminds.ai>",
+  "contributors": [
+    {
+      "name": "LJC-god",
+      "url": "https://github.com/LJC-god"
+    }
+  ],
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -12,7 +19,15 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/latentminds-ai/pi-quotas"
+    "url": "git+https://github.com/LJC-god/pi-quotas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LJC-god/pi-quotas/issues"
+  },
+  "homepage": "https://github.com/LJC-god/pi-quotas#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "pi": {
     "extensions": [
@@ -23,7 +38,7 @@
       "./src/extensions/token-status/index.ts",
       "./src/extensions/quota-warnings/index.ts"
     ],
-    "image": "https://raw.githubusercontent.com/latentminds-ai/pi-quotas/main/docs/quotas-dashboard.png"
+    "image": "https://raw.githubusercontent.com/LJC-god/pi-quotas/main/docs/quotas-dashboard.png"
   },
   "files": [
     "src",

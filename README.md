@@ -1,4 +1,6 @@
-# @latentminds/pi-quotas
+# @timiliang/pi-quotas
+
+Public feature fork of [latentminds-ai/pi-quotas](https://github.com/latentminds-ai/pi-quotas), preserving the original MIT license and author attribution.
 
 Includes first-class support for the China-region GLM Coding Plan (`zai-coding-cn`).
 
@@ -17,20 +19,20 @@ Quota monitoring for Pi. Shows remaining usage and rate limits for Anthropic, Op
 **From npm** (recommended):
 
 ```bash
-pi install npm:@latentminds/pi-quotas
+pi install npm:@timiliang/pi-quotas
 ```
 
 **From source:**
 
 ```bash
-git clone https://github.com/latentminds-ai/pi-quotas.git
+git clone https://github.com/LJC-god/pi-quotas.git
 pi install ./pi-quotas
 ```
 
 **Try without installing:**
 
 ```bash
-pi -e npm:@latentminds/pi-quotas
+pi -e npm:@timiliang/pi-quotas
 ```
 
 ## Commands
