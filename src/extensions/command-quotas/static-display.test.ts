@@ -6,7 +6,7 @@ import {
   type UsageEntryData,
 } from "./static-display.js";
 
-const ANSI_PATTERN = /\x1b\[[0-9;]*m/gu;
+const ANSI_PATTERN = new RegExp(`${String.fromCodePoint(27)}\\[[0-9;]*m`, "gu");
 
 function stripAnsi(value: string): string {
   return value.replace(ANSI_PATTERN, "");
@@ -52,7 +52,10 @@ describe("compact static usage display", () => {
     ];
 
     const data = serializeUsageEntry(snapshots, new Date("2026-08-27T12:00:00Z"));
-    expect(data.providers[0]?.windows[0]?.resetsAt).toBe("2026-09-02T12:00:00.000Z");
+    const provider = data.providers[0];
+    expect(provider && "windows" in provider).toBe(true);
+    if (!provider || !("windows" in provider)) throw new Error("Expected quota windows");
+    expect(provider.windows[0]?.resetsAt).toBe("2026-09-02T12:00:00.000Z");
 
     const output = renderUsageEntry(data, theme, new Date("2026-08-27T12:00:00Z"));
     const plainLines = output.split("\n").map(stripAnsi);

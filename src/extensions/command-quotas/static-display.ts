@@ -10,6 +10,12 @@ const RESET = "\x1b[0m";
 const LABEL_WIDTH = 18;
 const BAR_WIDTH = 10;
 const PIE = ["○", "◔", "◑", "◕", "●"] as const;
+const UNSAFE_CHARACTERS = new RegExp(
+  `[${String.fromCodePoint(0)}-${String.fromCodePoint(31)}`
+    + `${String.fromCodePoint(127)}-${String.fromCodePoint(159)}`
+    + "\u202a-\u202e\u2066-\u2069]",
+  "gu",
+);
 
 function rgb(hex: string): string {
   const value = Number.parseInt(hex.slice(1), 16);
@@ -57,7 +63,7 @@ export interface UsageEntryData {
 
 function clean(value: unknown, max = 240): string {
   return String(value ?? "")
-    .replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/gu, "")
+    .replace(UNSAFE_CHARACTERS, "")
     .trim()
     .slice(0, max);
 }

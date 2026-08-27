@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-27
+
+### Changed
+- Replaced the bordered interactive `/quotas` dashboard with the compact static `/usage` transcript entry used by the earlier usage-meters plugin. `/quotas` remains as a compatibility alias, provider-specific commands share the compact renderer, and `/usage --refresh` bypasses cached results.
+- Changed the active-provider footer to ASCII separators and reset labels, avoiding mojibake from decorative Unicode glyphs in Windows terminal and shell encoding paths.
+
 ## [0.4.0] - 2026-08-04
 
 ### Added

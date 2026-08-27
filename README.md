@@ -4,14 +4,11 @@ Public feature fork of [latentminds-ai/pi-quotas](https://github.com/latentminds
 
 Includes first-class support for the China-region GLM Coding Plan (`zai-coding-cn`).
 
-Quota monitoring for Pi. Shows remaining usage and rate limits for Anthropic, OpenAI Codex, GitHub Copilot, OpenRouter, Synthetic, Grok, Z.ai, OpenCode Go, and Kimi Code — directly in your Pi session.
+Quota monitoring for Pi. Shows remaining usage and rate limits for Anthropic, OpenAI Codex, GitHub Copilot, OpenRouter, Synthetic, Grok, Z.ai, OpenCode Go, and Kimi Code directly in your Pi session.
 
-## Screenshots
+## Interface
 
-
-| `/quotas` dashboard | Footer status |
-| ------------------- | ------------- |
-| Quotas dashboard    | Footer status |
+`/usage` writes one compact, colour-coded quota block into the transcript. Each quota window stays on one line and the entry never enters LLM context. The footer separately shows only the provider used by the active model.
 
 
 ## Install
@@ -38,9 +35,11 @@ pi -e npm:@timiliang/pi-quotas
 ## Commands
 
 
-| Command              | Description                                |
-| -------------------- | ------------------------------------------ |
-| `/quotas`            | Combined quota dashboard for all providers |
+| Command              | Description                                  |
+| -------------------- | -------------------------------------------- |
+| `/usage`             | Compact quota entry for connected providers  |
+| `/usage --refresh`   | Bypass the quota cache and append a new entry |
+| `/quotas`            | Compatibility alias for `/usage`             |
 | `/anthropic:quotas`  | Anthropic quotas only                      |
 | `/codex:quotas`      | OpenAI Codex quotas only                   |
 | `/github:quotas`     | GitHub Copilot quotas only                 |
@@ -59,15 +58,21 @@ pi -e npm:@timiliang/pi-quotas
 
 ## Features
 
-### Quota dashboard
+### Static usage transcript
 
-Run `/quotas` to open a bordered TUI view showing all providers side by side, with progress bars, used/remaining counts, and reset times. Press `r` to refresh, `q` or `Esc` to close.
+Run `/usage` to append a compact static quota entry to the transcript. Provider headings are colour-coded and every quota window uses one aligned row containing its progress bar, usage, counts or currency, and reset time. There is no modal, border, close key, or unused vertical padding. Use `/usage --refresh` to bypass the normal provider cache.
 
-The combined dashboard hides providers with no configured subscription, credentials that cannot report subscription usage, and successful responses with no quota windows. Provider-specific commands remain available and show detailed authentication or API errors for troubleshooting.
+The combined entry hides providers with no configured subscription, credentials that cannot report subscription usage, and successful responses with no quota windows. Provider-specific commands use the same static renderer and remain available for detailed authentication or API diagnostics. `/quotas` remains as a compatibility alias.
 
 ### Footer status widget
 
 When your active model is from a supported provider, the Pi footer shows only that provider's quota, balance, or budget. It never lists every configured provider and does not pin OpenCode Go when another model is selected. The compact provider label changes immediately after model selection, and data refreshes every 60 seconds and on each turn. Colours shift from green → amber → red as usage climbs. A dim `~` marks last-known data retained through a temporary network failure.
+
+The footer uses ASCII structural markers so Windows terminals do not need to render decorative separator or reset glyphs:
+
+```text
+Codex | 7d: 87% left (reset in 5d23h24m) | cap: OK
+```
 
 ### Quota warnings
 
@@ -77,7 +82,7 @@ Automatic notifications when projected usage is on track to exceed limits before
 
 Use `/quotas:settings` to enable or disable:
 
-- Combined `/quotas` command
+- Combined `/usage` command and `/quotas` compatibility alias
 - Per-provider commands (`/anthropic:quotas`, `/codex:quotas`, `/github:quotas`, `/openrouter:quotas`, `/synthetic:quotas`, `/grok:quotas`, `/zai:quotas`, `/zai-cn:quotas`, `/opencode-go:quotas`, `/kimi:quotas`)
 - Current-provider footer quota status
 - Quota warning notifications

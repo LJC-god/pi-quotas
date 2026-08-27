@@ -170,8 +170,8 @@ const FEATURE_META: Array<{
 }> = [
   {
     id: "quotasCommand",
-    label: "Combined quotas command",
-    description: "Toggle the `/quotas` command",
+    label: "Combined usage command",
+    description: "Toggle `/usage` and the `/quotas` compatibility alias",
   },
   {
     id: "providerCommands",
