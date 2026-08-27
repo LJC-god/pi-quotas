@@ -38,6 +38,29 @@ const DEFAULT_DEPENDENCIES: OpenCodeGoCommandDependencies = {
   clearQuotaCache: () => clearQuotaCache("opencode-go"),
 };
 
+async function showSetupGuide(
+  ctx: ExtensionCommandContext,
+): Promise<boolean> {
+  return ctx.ui.confirm(
+    "Prepare OpenCode Go quota access",
+    [
+      "Open this link manually (Ctrl+click or copy):",
+      "https://opencode.ai/auth",
+      "",
+      "You need two values:",
+      "1. Go workspace URL:",
+      "   https://opencode.ai/workspace/<workspace-id>/go",
+      "2. The value of the auth cookie for https://opencode.ai",
+      "",
+      "Find the cookie in: F12 > Application > Storage > Cookies",
+      "  > https://opencode.ai > auth > Value",
+      "Copy only the auth value, not all cookies.",
+      "",
+      "Continue after you have both values.",
+    ].join("\n"),
+  );
+}
+
 async function promptMaskedCookie(
   ctx: ExtensionCommandContext,
 ): Promise<string | null | undefined> {
@@ -51,6 +74,11 @@ async function promptMaskedCookie(
       render(width: number): string[] {
         return [
           theme.bold(theme.fg("accent", "OpenCode Go dashboard auth cookie")),
+          theme.fg(
+            "dim",
+            "Find it: F12 > Application > Storage > Cookies > opencode.ai > auth > Value.",
+          ),
+          theme.fg("dim", "Copy only the auth value, not all cookies."),
           theme.fg("dim", "The value is masked and is never written to session history."),
           ...input.render(width),
         ];
@@ -97,6 +125,9 @@ export function registerOpenCodeGoCommands(
   pi.registerCommand("opencode-go:setup", {
     description: "Configure OpenCode Go dashboard quota access",
     handler: async (_args, ctx) => {
+      const ready = await showSetupGuide(ctx);
+      if (!ready) return;
+
       const workspaceInput = await ctx.ui.input(
         "OpenCode Go workspace",
         "Workspace URL or ID",

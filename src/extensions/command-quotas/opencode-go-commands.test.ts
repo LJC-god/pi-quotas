@@ -69,7 +69,8 @@ function createContext(options?: {
 }) {
   const notify = vi.fn();
   const input = vi.fn(async () => options?.workspace);
-  const confirm = vi.fn(async () => options?.confirm ?? false);
+  const confirm = vi.fn(async () => options?.confirm ?? true);
+  const customRender: string[] = [];
   const custom = vi.fn(async (factory: any) => {
     if (options?.secret === "unavailable") return undefined;
     let result: string | null | undefined;
@@ -84,6 +85,7 @@ function createContext(options?: {
         result = value;
       },
     );
+    customRender.push(...component.render(120));
     component.handleInput(options?.secret === "cancel" ? "\u001b" : options?.secret ?? "");
     if (options?.secret !== "cancel") component.handleInput("\n");
     component.dispose?.();
@@ -96,6 +98,7 @@ function createContext(options?: {
     } as unknown as ExtensionCommandContext,
     confirm,
     custom,
+    customRender,
     input,
     notify,
   };
@@ -116,6 +119,43 @@ describe("OpenCode Go setup command registration and cancellation", () => {
 
     expect(commands.has("opencode-go:setup")).toBe(true);
     expect(commands.has("opencode-go:clear")).toBe(true);
+  });
+
+  it("shows the account link and required values before workspace input", async () => {
+    const { commands } = registerCommands();
+    const { ctx, confirm, input } = createContext({ workspace: undefined });
+
+    await requireCommand(commands, "opencode-go:setup").handler("", ctx);
+
+    expect(confirm).toHaveBeenCalledOnce();
+    const guide = JSON.stringify(confirm.mock.calls[0]);
+    expect(guide).toContain("https://opencode.ai/auth");
+    expect(guide).toContain(
+      "https://opencode.ai/workspace/<workspace-id>/go",
+    );
+    expect(guide).toContain("auth");
+    expect(guide).toContain("Application");
+    expect(guide).toContain("Cookies");
+    expect(confirm.mock.invocationCallOrder[0]).toBeLessThan(
+      input.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("stops before collecting credentials when the setup guide is declined", async () => {
+    const { commands, dependencies, emitted } = registerCommands();
+    const { ctx, input, custom } = createContext({
+      confirm: false,
+      workspace: "ws_123",
+      secret: "secret-cookie",
+    });
+
+    await requireCommand(commands, "opencode-go:setup").handler("", ctx);
+
+    expect(input).not.toHaveBeenCalled();
+    expect(custom).not.toHaveBeenCalled();
+    expect(dependencies.validate).not.toHaveBeenCalled();
+    expect(dependencies.save).not.toHaveBeenCalled();
+    expect(emitted).toEqual([]);
   });
 
   it("does nothing when workspace input is cancelled", async () => {
@@ -154,6 +194,21 @@ describe("OpenCode Go setup command registration and cancellation", () => {
 });
 
 describe("OpenCode Go setup command behavior", () => {
+  it("repeats the cookie lookup path in the masked prompt", async () => {
+    const { commands } = registerCommands();
+    const { ctx, customRender } = createContext({
+      workspace: "ws_123",
+      secret: "cancel",
+    });
+
+    await requireCommand(commands, "opencode-go:setup").handler("", ctx);
+
+    const prompt = customRender.join("\n");
+    expect(prompt).toContain("Application");
+    expect(prompt).toContain("Cookies");
+    expect(prompt).toContain("auth");
+  });
+
   it("rejects invalid workspace input before asking for a cookie", async () => {
     const { commands, dependencies } = registerCommands();
     const { ctx, custom, notify } = createContext({
