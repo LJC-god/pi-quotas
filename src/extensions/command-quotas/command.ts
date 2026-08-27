@@ -1,4 +1,9 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+  Theme,
+} from "@mariozechner/pi-coding-agent";
+import { Text } from "@mariozechner/pi-tui";
 import {
   QUOTAS_EXTENSIONS_REGISTER_EVENT,
   QUOTAS_EXTENSIONS_REQUEST_EVENT,
@@ -10,126 +15,147 @@ import {
   fetchProviderQuotas,
   SUPPORTED_PROVIDERS,
 } from "../../lib/quotas.js";
-import type { QuotasResult, SupportedQuotaProvider } from "../../types/quotas.js";
-import { QuotasComponent } from "./components/quotas-display.js";
+import type { SupportedQuotaProvider } from "../../types/quotas.js";
 import { registerOpenCodeGoCommands } from "./opencode-go-commands.js";
 import { getProviderCommandInfo } from "./provider-commands.js";
-import { filterDashboardSnapshots } from "./visibility.js";
+import {
+  renderUsageEntry,
+  serializeUsageEntry,
+  type UsageEntryData,
+} from "./static-display.js";
+import {
+  filterDashboardSnapshots,
+  type QuotaSnapshot,
+} from "./visibility.js";
 
-type Snapshot = { provider: SupportedQuotaProvider; result: QuotasResult };
+const USAGE_ENTRY_TYPE = "provider-usage";
 
-async function openQuotaView(
-  title: string,
-  loadSnapshots: (force: boolean, signal?: AbortSignal) => Promise<Snapshot[]>,
-  ctx: ExtensionCommandContext,
-): Promise<void> {
-  const result = await ctx.ui.custom<null>((tui, theme, _kb, done) => {
-    const controller = new AbortController();
-    const component = new QuotasComponent(
-      theme,
-      tui,
-      title,
-      () => {
-        controller.abort();
-        done(null);
-      },
-      () => {
-        component.setState({ type: "loading" });
-        tui.requestRender();
-        void load(true);
-      },
-    );
+type EntryRendererAPI = ExtensionAPI & {
+  registerEntryRenderer?: (
+    customType: string,
+    renderer: (
+      entry: { data?: unknown },
+      options: { expanded?: boolean },
+      theme: Theme,
+    ) => Text | undefined,
+  ) => void;
+};
 
-    async function load(force = false): Promise<void> {
-      const snapshots = await loadSnapshots(force, controller.signal);
-      if (controller.signal.aborted) return;
-      component.setState({ type: "loaded", snapshots });
-      tui.requestRender();
-    }
-
-    void load();
-
-    return {
-      render: (width: number) => component.render(width),
-      invalidate: () => component.invalidate(),
-      handleInput: (data: string) => component.handleInput(data),
-      dispose: () => {
-        controller.abort();
-        component.destroy();
-      },
-    };
-  });
-
-  if (result === undefined) {
-    const snapshots = await loadSnapshots(true);
-    ctx.ui.notify(formatSnapshotsForNotify(snapshots), "info");
-  }
+function isUsageEntryData(value: unknown): value is UsageEntryData {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<UsageEntryData>;
+  return typeof candidate.fetchedAt === "string" && Array.isArray(candidate.providers);
 }
 
-/**
- * Render quota snapshots as a readable multi-line summary for the
- * non-interactive fallback (when `ctx.ui.custom` returns undefined). Avoids
- * dumping raw JSON — which previously leaked raw HTTP error bodies — and
- * skips "not_applicable" providers since they have nothing to report.
- */
-function formatSnapshotsForNotify(snapshots: Snapshot[]): string {
-  const lines: string[] = [];
-  for (const { provider, result } of snapshots) {
-    if (!result.success) {
-      if (result.error.kind === "not_applicable") continue;
-      lines.push(`${provider}: ${result.error.message}`);
-      continue;
-    }
-    const summary = result.data.windows
-      .map((w) => `${w.label} ${w.usedPercent}%`)
-      .join(", ");
-    lines.push(`${provider}: ${summary || "no windows"}`);
+function parseRefreshArgument(
+  commandName: string,
+  args: string | undefined,
+  ctx: ExtensionCommandContext,
+): boolean | undefined {
+  const arg = String(args ?? "").trim();
+  if (!arg) return false;
+  if (arg === "--refresh") return true;
+  ctx.ui.notify(`Usage: /${commandName} [--refresh]`, "warning");
+  return undefined;
+}
+
+function registerUsageEntryRenderer(pi: ExtensionAPI): boolean {
+  const entryApi = pi as EntryRendererAPI;
+  if (typeof entryApi.registerEntryRenderer !== "function") return false;
+
+  entryApi.registerEntryRenderer(
+    USAGE_ENTRY_TYPE,
+    (entry, _options, theme) => {
+      if (!isUsageEntryData(entry.data)) {
+        return new Text(theme.fg("warning", "Invalid quota entry"), 0, 0);
+      }
+      return new Text(renderUsageEntry(entry.data, theme), 0, 0);
+    },
+  );
+  return true;
+}
+
+function outputUsageEntry(
+  pi: ExtensionAPI,
+  supportsEntryRenderer: boolean,
+  snapshots: QuotaSnapshot[],
+  ctx: ExtensionCommandContext,
+): void {
+  const data = serializeUsageEntry(snapshots);
+  if (supportsEntryRenderer) {
+    pi.appendEntry(USAGE_ENTRY_TYPE, data);
+    return;
   }
-  return lines.join("\n") || "No quota data available";
+  ctx.ui.notify(renderUsageEntry(data, ctx.ui.theme), "info");
+}
+
+function combinedUsageHandler(
+  pi: ExtensionAPI,
+  supportsEntryRenderer: boolean,
+  commandName: "usage" | "quotas",
+) {
+  return async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
+    if (!configLoader.getConfig().quotasCommand) {
+      ctx.ui.notify(`/${commandName} is disabled. Re-enable it in /quotas:settings.`, "warning");
+      return;
+    }
+    const force = parseRefreshArgument(commandName, args, ctx);
+    if (force === undefined) return;
+    const snapshots = filterDashboardSnapshots(
+      await fetchAllProviderQuotas(
+        quotaAuthStorage(ctx.modelRegistry),
+        { force },
+      ),
+    );
+    outputUsageEntry(pi, supportsEntryRenderer, snapshots, ctx);
+  };
+}
+
+function providerUsageHandler(
+  pi: ExtensionAPI,
+  supportsEntryRenderer: boolean,
+  provider: SupportedQuotaProvider,
+  commandName: string,
+) {
+  return async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
+    if (!configLoader.getConfig().providerCommands) {
+      ctx.ui.notify(`/${commandName} is disabled. Re-enable it in /quotas:settings.`, "warning");
+      return;
+    }
+    const force = parseRefreshArgument(commandName, args, ctx);
+    if (force === undefined) return;
+    const result = await fetchProviderQuotas(
+      quotaAuthStorage(ctx.modelRegistry),
+      provider,
+      { force },
+    );
+    outputUsageEntry(pi, supportsEntryRenderer, [{ provider, result }], ctx);
+  };
 }
 
 export function registerQuotasCommands(pi: ExtensionAPI): void {
+  const supportsEntryRenderer = registerUsageEntryRenderer(pi);
+
+  pi.registerCommand("usage", {
+    description: "Show subscription quota for connected providers",
+    handler: combinedUsageHandler(pi, supportsEntryRenderer, "usage"),
+  });
+
   pi.registerCommand("quotas", {
-    description: "Display remaining quotas for all supported providers",
-    handler: async (_args, ctx) => {
-      if (!configLoader.getConfig().quotasCommand) {
-        ctx.ui.notify("/quotas is disabled. Re-enable it in /quotas:settings.", "warning");
-        return;
-      }
-      await openQuotaView(
-        "Provider Quotas",
-        async (force, signal) =>
-          filterDashboardSnapshots(
-            await fetchAllProviderQuotas(
-              quotaAuthStorage(ctx.modelRegistry),
-              { force, signal },
-            ),
-          ),
-        ctx,
-      );
-    },
+    description: "Show subscription quota for connected providers (alias of /usage)",
+    handler: combinedUsageHandler(pi, supportsEntryRenderer, "quotas"),
   });
 
   for (const provider of SUPPORTED_PROVIDERS) {
     const info = getProviderCommandInfo(provider);
     pi.registerCommand(info.commandName, {
-      description: `Display remaining ${info.title.toLowerCase()}`,
-      handler: async (_args, ctx) => {
-        if (!configLoader.getConfig().providerCommands) {
-          ctx.ui.notify(`${info.commandName} is disabled. Re-enable it in /quotas:settings.`, "warning");
-          return;
-        }
-        await openQuotaView(
-          info.title,
-          async (force, signal) => [
-            {
-              provider,
-              result: await fetchProviderQuotas(quotaAuthStorage(ctx.modelRegistry), provider, { force, signal }),
-            },
-          ],
-          ctx,
-        );
-      },
+      description: `Show remaining ${info.title.toLowerCase()}`,
+      handler: providerUsageHandler(
+        pi,
+        supportsEntryRenderer,
+        provider,
+        info.commandName,
+      ),
     });
   }
 }
