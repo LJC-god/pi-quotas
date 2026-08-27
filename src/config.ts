@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import pkg from "../package.json" with { type: "json" };
+import type { SupportedQuotaProvider } from "./types/quotas.js";
 
 export type QuotasFeatureId =
   | "quotasCommand"
@@ -18,6 +19,12 @@ export const QUOTAS_EXTENSIONS_REQUEST_EVENT =
 export const QUOTAS_EXTENSIONS_REGISTER_EVENT =
   "quotas:extensions:register" as const;
 export const QUOTAS_CONFIG_UPDATED_EVENT = "quotas:config:updated" as const;
+export const QUOTAS_PROVIDER_CONFIG_UPDATED_EVENT =
+  "quotas:provider-config:updated" as const;
+
+export interface QuotasProviderConfigUpdatedPayload {
+  provider: SupportedQuotaProvider;
+}
 
 export interface QuotasExtensionsRegisterPayload {
   feature: QuotasFeatureId;

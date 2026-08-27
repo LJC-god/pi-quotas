@@ -12,6 +12,7 @@ import {
 } from "../../lib/quotas.js";
 import type { QuotasResult, SupportedQuotaProvider } from "../../types/quotas.js";
 import { QuotasComponent } from "./components/quotas-display.js";
+import { registerOpenCodeGoCommands } from "./opencode-go-commands.js";
 import { getProviderCommandInfo } from "./provider-commands.js";
 import { filterDashboardSnapshots } from "./visibility.js";
 
@@ -135,6 +136,7 @@ export function registerQuotasCommands(pi: ExtensionAPI): void {
 
 export default async function (pi: ExtensionAPI) {
   await configLoader.load();
+  registerOpenCodeGoCommands(pi);
 
   const config = configLoader.getConfig();
   if (config.quotasCommand || config.providerCommands) {
