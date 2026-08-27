@@ -15,8 +15,14 @@ export interface OpenCodeGoConfig {
   authCookie: string;
 }
 
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 const SAFE_WORKSPACE_ID = /^[A-Za-z0-9_-]+$/u;
+
+function hasControlCharacters(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+  });
+}
 
 function requireSafeWorkspaceId(value: string): string {
   if (!SAFE_WORKSPACE_ID.test(value)) {
@@ -27,7 +33,7 @@ function requireSafeWorkspaceId(value: string): string {
 
 export function normalizeOpenCodeGoWorkspaceInput(input: string): string {
   const value = input.trim();
-  if (!value || CONTROL_CHARACTERS.test(value)) {
+  if (!value || hasControlCharacters(value)) {
     throw new Error("OpenCode Go workspace is required");
   }
 
@@ -61,7 +67,7 @@ export function normalizeOpenCodeGoWorkspaceInput(input: string): string {
 
 export function normalizeOpenCodeGoAuthCookieInput(input: string): string {
   const value = input.trim();
-  if (!value || CONTROL_CHARACTERS.test(value)) {
+  if (!value || hasControlCharacters(value)) {
     throw new Error("OpenCode Go auth cookie is required");
   }
 
@@ -80,7 +86,7 @@ export function normalizeOpenCodeGoAuthCookieInput(input: string): string {
 
   if (
     !authCookie ||
-    CONTROL_CHARACTERS.test(authCookie) ||
+    hasControlCharacters(authCookie) ||
     /[\s;]/u.test(authCookie)
   ) {
     throw new Error("OpenCode Go auth cookie is invalid");
