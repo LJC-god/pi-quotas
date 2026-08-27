@@ -664,16 +664,19 @@ export function parseKimiCodingUsage(data: any): QuotaWindow[] {
 // Z.ai (Zhipu AI) GLM Coding Plan quotas.
 //
 // The quota endpoint returns { data: { limits: [...], level } }. Each entry in
-// `limits` is either a TOKENS_LIMIT (token utilisation, reported as a bare
-// `percentage` with no absolute used/limit counts) or a TIME_LIMIT (a monthly
-// count window such as web searches, which does carry real used/limit counts).
+// `limits` can be a TOKENS_LIMIT (token utilisation, reported as a bare
+// `percentage`), a CREDIT_LIMIT (coding-plan credits with absolute counts),
+// or a TIME_LIMIT (a monthly count window such as web searches).
 //
 // The window length is encoded as (unit, number). Observed values:
 //   unit 3 = HOUR  (e.g. the rolling 5-hour session window)
 //   unit 6 = WEEK  (e.g. the rolling 7-day weekly window)
 //   unit 5 = MONTH (TIME_LIMIT only, the monthly count window)
 // Reset times are epoch milliseconds.
-export function parseZaiUsage(data: any): QuotaWindow[] {
+export function parseZaiUsage(
+  data: any,
+  provider: "zai" | "zai-coding-cn" = "zai",
+): QuotaWindow[] {
   const collected: QuotaWindow[] = [];
 
   const limits: any[] = data?.data?.limits ?? data?.limits ?? [];
@@ -711,13 +714,47 @@ export function parseZaiUsage(data: any): QuotaWindow[] {
       }
 
       collected.push({
-        provider: "zai",
+        provider,
         label,
         usedPercent: Number(entry.percentage ?? 0),
         resetsAt: parseDateish(entry.nextResetTime),
         windowSeconds,
         usedValue: Number(entry.percentage ?? 0),
         limitValue: 100,
+        showPace: false,
+        nextLabel: "Resets",
+      });
+      continue;
+    }
+
+    if (entry.type === "CREDIT_LIMIT") {
+      const count = Number(entry.number ?? 1) || 1;
+      const unitSeconds: Record<number, number> = {
+        1: 1,
+        2: 60,
+        3: 60 * 60,
+        4: 24 * 60 * 60,
+        5: 7 * 24 * 60 * 60,
+        6: 30 * 24 * 60 * 60,
+      };
+      const windowSeconds = (unitSeconds[Number(entry.unit)] ?? 0) * count;
+      const limit = Number(entry.usage ?? 0);
+      const used = Number(entry.currentValue ?? 0);
+      if (limit <= 0) continue;
+
+      collected.push({
+        provider,
+        label:
+          windowSeconds === 30 * 24 * 60 * 60
+            ? "Month credits"
+            : `${codexWindowLabel(windowSeconds)} credits`,
+        usedPercent: Number.isFinite(Number(entry.percentage))
+          ? Number(entry.percentage)
+          : safePercent(used, limit),
+        resetsAt: parseDateish(entry.nextResetTime),
+        windowSeconds,
+        usedValue: used,
+        limitValue: limit,
         showPace: false,
         nextLabel: "Resets",
       });
@@ -732,7 +769,7 @@ export function parseZaiUsage(data: any): QuotaWindow[] {
       if (limit <= 0) continue;
 
       collected.push({
-        provider: "zai",
+        provider,
         label: "Web / month",
         usedPercent: safePercent(used, limit),
         resetsAt: parseDateish(entry.nextResetTime),

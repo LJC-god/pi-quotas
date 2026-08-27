@@ -1,5 +1,6 @@
 import { AuthStorage } from "@mariozechner/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as fetchModule from "./fetch.js";
 import {
   fetchAnthropicQuotasWithToken,
   fetchCodexQuotasWithToken,
@@ -378,5 +379,98 @@ describe("fetchXaiQuotasWithToken", () => {
       success: false,
       error: { kind: "http", message: "token rejected" },
     });
+  });
+});
+
+describe("ZAI regional quota fetchers", () => {
+  it("keeps the global Z.ai endpoint on Bearer authentication", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { limits: [] } }), { status: 200 }),
+    ) as any;
+
+    const result = await fetchModule.fetchZaiQuotasWithToken("global-key");
+
+    expect(result.success).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://api.z.ai/api/monitor/usage/quota/limit",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer global-key",
+        }),
+      }),
+    );
+  });
+
+  it("returns a config error when the China API key is missing", async () => {
+    const fetchWithToken = (fetchModule as any)
+      .fetchZaiCodingCnQuotasWithToken;
+    expect(fetchWithToken).toBeTypeOf("function");
+
+    const result = await fetchWithToken(undefined);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { kind: "config" },
+    });
+  });
+
+  it("uses the China endpoint with its raw authorization value", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            limits: [
+              {
+                type: "TOKENS_LIMIT",
+                unit: 3,
+                number: 5,
+                percentage: 25,
+                nextResetTime: 1782932874304,
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      ),
+    ) as any;
+    const fetchWithToken = (fetchModule as any)
+      .fetchZaiCodingCnQuotasWithToken;
+    expect(fetchWithToken).toBeTypeOf("function");
+
+    const result = await fetchWithToken("china-key");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.provider).toBe("zai-coding-cn");
+      expect(result.data.windows).toHaveLength(1);
+      expect(result.data.windows[0].provider).toBe("zai-coding-cn");
+    }
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://open.bigmodel.cn/api/monitor/usage/quota/limit",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "china-key",
+          "Accept-Language": "en-US,en",
+        }),
+      }),
+    );
+  });
+
+  it("resolves only the zai-coding-cn credential from Pi auth storage", async () => {
+    const auth = AuthStorage.inMemory({
+      "zai-coding-cn": { type: "api_key", key: "stored-china-key" },
+    });
+    const getApiKey = vi.spyOn(auth, "getApiKey");
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { limits: [] } }), { status: 200 }),
+    ) as any;
+    const fetchChina = (fetchModule as any).fetchZaiCodingCnQuotas;
+    expect(fetchChina).toBeTypeOf("function");
+
+    const result = await fetchChina(auth);
+
+    expect(result.success).toBe(true);
+    expect(getApiKey).toHaveBeenCalledTimes(1);
+    expect(getApiKey).toHaveBeenCalledWith("zai-coding-cn");
   });
 });

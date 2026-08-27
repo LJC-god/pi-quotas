@@ -52,6 +52,12 @@ export function getProviderCommandInfo(
         commandName: "zai:quotas",
         title: "Z.ai Quotas",
       };
+    case "zai-coding-cn":
+      return {
+        provider,
+        commandName: "zai-cn:quotas",
+        title: "GLM China Quotas",
+      };
     case "opencode-go":
       return {
         provider,

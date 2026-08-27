@@ -10,6 +10,7 @@ export const SUPPORTED_PROVIDERS: SupportedQuotaProvider[] = [
   "synthetic",
   "xai",
   "zai",
+  "zai-coding-cn",
   "opencode-go",
   "kimi-coding",
 ];
@@ -22,6 +23,7 @@ export const PROVIDER_LABELS: Record<SupportedQuotaProvider, string> = {
   synthetic: "Synthetic",
   xai: "Grok",
   zai: "Z.ai",
+  "zai-coding-cn": "GLM China",
   "opencode-go": "OpenCode Go",
   "kimi-coding": "Kimi Code",
 };
@@ -34,6 +36,7 @@ const PROVIDER_TTLS_MS: Record<SupportedQuotaProvider, number> = {
   synthetic: 60_000,
   xai: 60_000,
   zai: 60_000,
+  "zai-coding-cn": 60_000,
   "opencode-go": 60_000,
   "kimi-coding": 60_000,
 };

@@ -501,6 +501,39 @@ export async function fetchZaiQuotas(
   return fetchZaiQuotasWithToken(await providerAccessToken(authStorage, "zai"), signal);
 }
 
+export async function fetchZaiCodingCnQuotasWithToken(
+  apiKey: string | undefined,
+  signal?: AbortSignal,
+): Promise<QuotasResult> {
+  if (!apiKey) return failure("No Z.ai Coding CN API key found", "config");
+  const result = await fetchJson(
+    "https://open.bigmodel.cn/api/monitor/usage/quota/limit",
+    {
+      headers: {
+        Authorization: apiKey,
+        Accept: "application/json",
+        "Accept-Language": "en-US,en",
+      },
+    },
+    signal,
+  );
+  if (!result.ok) return failure(result.message, result.kind);
+  return success(
+    "zai-coding-cn",
+    parseZaiUsage(result.data, "zai-coding-cn"),
+  );
+}
+
+export async function fetchZaiCodingCnQuotas(
+  authStorage: AuthStorage,
+  signal?: AbortSignal,
+): Promise<QuotasResult> {
+  return fetchZaiCodingCnQuotasWithToken(
+    await providerAccessToken(authStorage, "zai-coding-cn"),
+    signal,
+  );
+}
+
 export async function fetchXaiQuotasWithToken(
   accessToken: string | undefined,
   signal?: AbortSignal,
@@ -539,6 +572,7 @@ export const PROVIDER_FETCHERS = {
   synthetic: fetchSyntheticQuotas,
   xai: fetchXaiQuotas,
   zai: fetchZaiQuotas,
+  "zai-coding-cn": fetchZaiCodingCnQuotas,
   "opencode-go": fetchOpenCodeGoQuotas,
   "kimi-coding": fetchKimiCodingQuotas,
 } as const;

@@ -6,6 +6,7 @@ export type SupportedQuotaProvider =
   | "synthetic"
   | "xai"
   | "zai"
+  | "zai-coding-cn"
   | "opencode-go"
   | "kimi-coding";
 

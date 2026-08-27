@@ -779,6 +779,75 @@ describe("parseKimiCodingUsage", () => {
 });
 
 describe("parseZaiUsage", () => {
+  it("preserves the China provider identity", () => {
+    const windows = parseZaiUsage(
+      {
+        data: {
+          limits: [
+            {
+              type: "TOKENS_LIMIT",
+              unit: 3,
+              number: 5,
+              percentage: 25,
+              nextResetTime: 1782932874304,
+            },
+          ],
+        },
+      },
+      "zai-coding-cn",
+    );
+
+    expect(windows).toHaveLength(1);
+    expect(windows[0].provider).toBe("zai-coding-cn");
+  });
+
+  it("maps China coding-plan credit windows with absolute counts", () => {
+    const windows = parseZaiUsage(
+      {
+        data: {
+          limits: [
+            {
+              type: "CREDIT_LIMIT",
+              unit: 3,
+              number: 5,
+              usage: 2_000,
+              currentValue: 716,
+              percentage: 35,
+            },
+            {
+              type: "CREDIT_LIMIT",
+              unit: 6,
+              number: 1,
+              usage: 10_000,
+              currentValue: 3_440,
+              percentage: 34,
+              nextResetTime: 1785048370995,
+            },
+          ],
+        },
+      },
+      "zai-coding-cn",
+    );
+
+    expect(windows).toHaveLength(2);
+    expect(windows[0]).toMatchObject({
+      provider: "zai-coding-cn",
+      label: "5h credits",
+      usedPercent: 35,
+      usedValue: 716,
+      limitValue: 2_000,
+      windowSeconds: 5 * 60 * 60,
+    });
+    expect(windows[1]).toMatchObject({
+      provider: "zai-coding-cn",
+      label: "Month credits",
+      usedPercent: 34,
+      usedValue: 3_440,
+      limitValue: 10_000,
+      windowSeconds: 30 * 24 * 60 * 60,
+    });
+  });
+
   it("maps token windows (5h/7d) and the monthly web-search count", () => {
     const windows = parseZaiUsage({
       data: {

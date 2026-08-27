@@ -59,6 +59,15 @@ describe("getProviderCommandInfo", () => {
     });
   });
 
+  it("maps zai-coding-cn to zai-cn:quotas", () => {
+    const info = getProviderCommandInfo("zai-coding-cn");
+    expect(info).toMatchObject<Partial<ProviderCommandInfo>>({
+      provider: "zai-coding-cn",
+      commandName: "zai-cn:quotas",
+      title: "GLM China Quotas",
+    });
+  });
+
   it("maps kimi-coding to kimi:quotas", () => {
     const info = getProviderCommandInfo("kimi-coding");
     expect(info).toMatchObject<Partial<ProviderCommandInfo>>({
