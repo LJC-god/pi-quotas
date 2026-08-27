@@ -1,7 +1,32 @@
 import { AuthStorage } from "@mariozechner/pi-coding-agent";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configLoader } from "../../config.js";
+import { clearOpenCodeGoConfigCache } from "../../providers/opencode-go-config.js";
 import quotaCommandsExtension, { registerQuotasCommands } from "./command.js";
+
+const originalWorkspaceId = process.env.OPENCODE_GO_WORKSPACE_ID;
+const originalAuthCookie = process.env.OPENCODE_GO_AUTH_COOKIE;
+
+beforeEach(() => {
+  clearOpenCodeGoConfigCache();
+  process.env.OPENCODE_GO_WORKSPACE_ID = "test-workspace";
+  delete process.env.OPENCODE_GO_AUTH_COOKIE;
+});
+
+afterEach(() => {
+  clearOpenCodeGoConfigCache();
+  if (originalWorkspaceId === undefined) {
+    delete process.env.OPENCODE_GO_WORKSPACE_ID;
+  } else {
+    process.env.OPENCODE_GO_WORKSPACE_ID = originalWorkspaceId;
+  }
+  if (originalAuthCookie === undefined) {
+    delete process.env.OPENCODE_GO_AUTH_COOKIE;
+  } else {
+    process.env.OPENCODE_GO_AUTH_COOKIE = originalAuthCookie;
+  }
+  vi.restoreAllMocks();
+});
 
 function registeredCommands() {
   const commands = new Map<string, any>();
