@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { SupportedQuotaProvider } from "../../types/quotas.js";
 import type { QuotaSnapshot } from "./visibility.js";
 import {
   renderUsageEntry,
@@ -7,6 +8,10 @@ import {
 } from "./static-display.js";
 
 const ANSI_PATTERN = new RegExp(`${String.fromCodePoint(27)}\\[[0-9;]*m`, "gu");
+const RGB_PREFIX_PATTERN = new RegExp(
+  `^${String.fromCodePoint(27)}\\[38;2;(\\d+);(\\d+);(\\d+)m`,
+  "u",
+);
 
 function stripAnsi(value: string): string {
   return value.replace(ANSI_PATTERN, "");
@@ -16,7 +21,78 @@ const theme = {
   fg: (color: string, text: string) => `<${color}>${text}</${color}>`,
 } as any;
 
+const ALL_PROVIDERS: SupportedQuotaProvider[] = [
+  "anthropic",
+  "openai-codex",
+  "github-copilot",
+  "openrouter",
+  "synthetic",
+  "xai",
+  "zai",
+  "zai-coding-cn",
+  "opencode-go",
+  "kimi-coding",
+];
+
+function allProviderData(): UsageEntryData {
+  return serializeUsageEntry(
+    ALL_PROVIDERS.map((provider) => ({
+      provider,
+      result: {
+        success: true as const,
+        data: {
+          provider,
+          windows: [
+            {
+              provider,
+              label: "Weekly",
+              usedPercent: 25,
+              resetsAt: new Date("2026-09-02T12:00:00Z"),
+              windowSeconds: 7 * 24 * 60 * 60,
+              usedValue: 25,
+              limitValue: 100,
+            },
+          ],
+        },
+      },
+    })),
+    new Date("2026-08-27T12:00:00Z"),
+  );
+}
+
 describe("compact static usage display", () => {
+  it("uses a unique bright non-neutral colour for every provider", () => {
+    const lines = renderUsageEntry(
+      allProviderData(),
+      theme,
+      new Date("2026-08-27T12:00:00Z"),
+    ).split("\n");
+    const colors = ALL_PROVIDERS.map((_, index) => {
+      const match = RGB_PREFIX_PATTERN.exec(lines[index * 2] ?? "");
+      expect(match).not.toBeNull();
+      const channels = match?.slice(1).map(Number) ?? [];
+      expect(Math.max(...channels)).toBeGreaterThanOrEqual(230);
+      expect(Math.max(...channels) - Math.min(...channels)).toBeGreaterThanOrEqual(80);
+      return match?.[0];
+    });
+
+    expect(new Set(colors).size).toBe(ALL_PROVIDERS.length);
+  });
+
+  it("applies each provider colour to its quota rows", () => {
+    const lines = renderUsageEntry(
+      allProviderData(),
+      theme,
+      new Date("2026-08-27T12:00:00Z"),
+    ).split("\n");
+
+    for (let index = 0; index < ALL_PROVIDERS.length; index++) {
+      const headingColor = RGB_PREFIX_PATTERN.exec(lines[index * 2] ?? "")?.[0];
+      const quotaColor = RGB_PREFIX_PATTERN.exec(lines[index * 2 + 1] ?? "")?.[0];
+      expect(quotaColor).toBe(headingColor);
+    }
+  });
+
   it("serializes dates and renders every quota window on one compact line", () => {
     const snapshots: QuotaSnapshot[] = [
       {

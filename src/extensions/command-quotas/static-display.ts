@@ -23,16 +23,16 @@ function rgb(hex: string): string {
 }
 
 const PROVIDER_COLORS: Record<SupportedQuotaProvider, string> = {
-  anthropic: rgb("#d77757"),
-  "openai-codex": rgb("#ffffff"),
-  "github-copilot": rgb("#58a66a"),
-  openrouter: rgb("#b58cff"),
-  synthetic: rgb("#63c7bd"),
-  xai: rgb("#8a8a8a"),
-  zai: rgb("#9b8cff"),
-  "zai-coding-cn": rgb("#9b8cff"),
-  "opencode-go": rgb("#4fa8ff"),
-  "kimi-coding": rgb("#4fa8ff"),
+  anthropic: rgb("#ff6b35"),
+  "openai-codex": rgb("#00efa8"),
+  "github-copilot": rgb("#a8ff3e"),
+  openrouter: rgb("#ff4fd8"),
+  synthetic: rgb("#00e5ff"),
+  xai: rgb("#ffd43b"),
+  zai: rgb("#c65cff"),
+  "zai-coding-cn": rgb("#ff5c8a"),
+  "opencode-go": rgb("#00bfff"),
+  "kimi-coding": rgb("#6c7cff"),
 };
 
 export interface UsageWindow {
@@ -175,16 +175,16 @@ export function renderUsageEntry(
     lines.push(theme.fg("dim", "No active quota subscriptions detected"));
   } else {
     for (const snapshot of data.providers) {
-      lines.push(
-        `${PROVIDER_COLORS[snapshot.provider]}${PROVIDER_LABELS[snapshot.provider]}${RESET}`,
-      );
+      const block = [PROVIDER_LABELS[snapshot.provider]];
       if ("error" in snapshot) {
-        lines.push(`  ${theme.fg("warning", clean(snapshot.error.message))}`);
+        block.push(`  ${clean(snapshot.error.message)}`);
       } else if (snapshot.windows.length === 0) {
-        lines.push(`  ${theme.fg("dim", "No quota windows available")}`);
+        block.push("  No quota windows available");
       } else {
-        lines.push(...snapshot.windows.map((window) => renderWindow(window, now)));
+        block.push(...snapshot.windows.map((window) => renderWindow(window, now)));
       }
+      const color = PROVIDER_COLORS[snapshot.provider];
+      lines.push(...block.map((line) => `${color}${line}${RESET}`));
     }
   }
 
