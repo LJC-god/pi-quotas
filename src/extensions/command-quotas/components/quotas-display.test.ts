@@ -38,6 +38,15 @@ describe("QuotasComponent", () => {
     expect(component.render(70).join("\n")).toContain(`pi-quotas v${pkg.version}`);
   });
 
+  it("explains when no active quota subscriptions are detected", () => {
+    const component = makeComponent();
+    component.setState({ type: "loaded", snapshots: [] });
+
+    expect(component.render(70).join("\n")).toContain(
+      "No active quota subscriptions detected",
+    );
+  });
+
   it("does not render an accent-colored pace marker inside filled warning bars", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-14T13:42:11Z"));

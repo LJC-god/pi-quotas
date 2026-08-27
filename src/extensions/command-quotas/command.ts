@@ -13,6 +13,7 @@ import {
 import type { QuotasResult, SupportedQuotaProvider } from "../../types/quotas.js";
 import { QuotasComponent } from "./components/quotas-display.js";
 import { getProviderCommandInfo } from "./provider-commands.js";
+import { filterDashboardSnapshots } from "./visibility.js";
 
 type Snapshot = { provider: SupportedQuotaProvider; result: QuotasResult };
 
@@ -96,7 +97,13 @@ export function registerQuotasCommands(pi: ExtensionAPI): void {
       }
       await openQuotaView(
         "Provider Quotas",
-        (force, signal) => fetchAllProviderQuotas(quotaAuthStorage(ctx.modelRegistry), { force, signal }),
+        async (force, signal) =>
+          filterDashboardSnapshots(
+            await fetchAllProviderQuotas(
+              quotaAuthStorage(ctx.modelRegistry),
+              { force, signal },
+            ),
+          ),
         ctx,
       );
     },

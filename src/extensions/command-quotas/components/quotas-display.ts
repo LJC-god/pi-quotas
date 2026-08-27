@@ -125,6 +125,16 @@ export class QuotasComponent implements Component {
   }
 
   private renderLoaded(snapshots: Snapshot[], maxWidth: number): string[] {
+    if (snapshots.length === 0) {
+      return [
+        "",
+        truncateToWidth(
+          `  ${this.theme.fg("dim", "No active quota subscriptions detected")}`,
+          maxWidth,
+        ),
+      ];
+    }
+
     const lines: string[] = [""];
     for (const snapshot of snapshots) {
       lines.push(...this.renderProvider(snapshot, maxWidth));

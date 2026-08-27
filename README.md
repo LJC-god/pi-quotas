@@ -56,6 +56,8 @@ pi -e npm:@latentminds/pi-quotas
 
 Run `/quotas` to open a bordered TUI view showing all providers side by side, with progress bars, used/remaining counts, and reset times. Press `r` to refresh, `q` or `Esc` to close.
 
+The combined dashboard hides providers with no configured subscription, credentials that cannot report subscription usage, and successful responses with no quota windows. Provider-specific commands remain available and show detailed authentication or API errors for troubleshooting.
+
 ### Footer status widget
 
 When your active model is from a supported provider, the Pi footer shows real-time quota headroom - updated every 60 seconds and on each turn. Colours shift from green → amber → red as usage climbs.
