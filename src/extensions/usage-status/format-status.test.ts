@@ -133,8 +133,9 @@ describe("formatWindowStatus", () => {
 
       const result = formatStatus({ ui: { theme } } as any, [status]);
 
-      expect(result).toContain("(↺in 2h19m)");
-      expect(result).not.toContain("(↺in 3h)");
+      expect(result).toContain("(reset in 2h19m)");
+      expect(result).not.toContain("(reset in 3h)");
+      expect(result).not.toContain("↺");
     }
   });
 
@@ -155,7 +156,7 @@ describe("formatWindowStatus", () => {
     );
 
     expect(result).toContain("cap:");
-    expect(result).not.toContain("↺");
+    expect(result).not.toContain("reset");
     expect(result).not.toContain("soon");
   });
 
@@ -242,8 +243,8 @@ describe("formatWindowStatus", () => {
       ],
     );
 
-    expect(result).toContain("(↺now)");
-    expect(result).not.toContain("(↺in now)");
+    expect(result).toContain("(reset now)");
+    expect(result).not.toContain("(reset in now)");
   });
 
   it.each([
@@ -275,6 +276,38 @@ describe("formatWindowStatus", () => {
     );
 
     expect(result).toContain(`[accent]${label}[/accent]`);
+  });
+
+  it("uses ASCII separators between the provider and quota windows", () => {
+    const result = formatStatus(
+      { ui: { theme } } as any,
+      [
+        {
+          label: "7d",
+          usedPercent: 13,
+          severity: "none",
+          resetsAt: null,
+          limited: false,
+          usedValue: 13,
+          limitValue: 100,
+        },
+        {
+          label: "Spend cap",
+          usedPercent: 0,
+          severity: "none",
+          resetsAt: null,
+          limited: false,
+          usedValue: 0,
+          limitValue: 1,
+        },
+      ],
+      "openai-codex",
+    );
+
+    expect(result).toContain("[accent]Codex[/accent] | ");
+    expect(result).toContain(" | [dim]cap:");
+    expect(result).not.toContain("·");
+    expect(result).not.toContain("↺");
   });
 
   it("keeps the active OpenRouter budget visible in the labelled footer", () => {

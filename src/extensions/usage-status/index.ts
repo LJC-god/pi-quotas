@@ -77,12 +77,14 @@ export function formatStatus(
   const windowStatus = windows
     .map((w) => {
       const core = formatWindowStatus(theme, w);
-      const reset = w.resetsAt ? theme.fg("dim", ` (↺${formatFooterResetTime(w.resetsAt)})`) : "";
+      const reset = w.resetsAt
+        ? theme.fg("dim", ` (reset ${formatFooterResetTime(w.resetsAt)})`)
+        : "";
       return `${core}${reset}`;
     })
-    .join(" ");
+    .join(" | ");
   if (!provider) return windowStatus;
-  return `${theme.fg("accent", FOOTER_PROVIDER_LABELS[provider])} · ${windowStatus}`;
+  return `${theme.fg("accent", FOOTER_PROVIDER_LABELS[provider])} | ${windowStatus}`;
 }
 
 const ANTHROPIC_SUBSCRIPTION_WINDOW_LABELS = new Set([
