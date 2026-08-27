@@ -440,7 +440,11 @@ export async function fetchOpenCodeGoQuotas(
   }
 
   const result = await queryOpenCodeGoQuota(configResult.config, signal);
-  if (!result.success) return failure(result.error, "http");
+  if (!result.success) {
+    const kind =
+      result.status === 401 || result.status === 403 ? "config" : "http";
+    return failure(result.error, kind);
+  }
   return success("opencode-go", parseOpenCodeGoUsage(result));
 }
 

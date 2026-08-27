@@ -181,8 +181,8 @@ const FEATURE_META: Array<{
   },
   {
     id: "usageStatus",
-    label: "Usage status",
-    description: "Toggle footer quota status for the active provider",
+    label: "Current provider quota status",
+    description: "Toggle footer quota or balance status for the active provider",
   },
   {
     id: "tokenStatus",

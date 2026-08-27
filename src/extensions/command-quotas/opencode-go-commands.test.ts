@@ -230,6 +230,29 @@ describe("OpenCode Go setup command behavior", () => {
     expect(JSON.stringify(notify.mock.calls)).not.toContain(secret);
   });
 
+  it("requests a fresh cookie for structured authorization failures", async () => {
+    const dependencies = createDependencies({
+      validate: vi.fn(async () => ({
+        success: false as const,
+        status: 403,
+        error: "dashboard request denied",
+      })),
+    });
+    const { commands } = registerCommands(dependencies);
+    const { ctx, notify } = createContext({
+      workspace: "ws_123",
+      secret: "rejected-secret-cookie",
+    });
+
+    await requireCommand(commands, "opencode-go:setup").handler("", ctx);
+
+    expect(notify).toHaveBeenCalledWith(
+      expect.stringContaining("fresh auth cookie"),
+      "error",
+    );
+    expect(dependencies.save).not.toHaveBeenCalled();
+  });
+
   it("warns when environment variables override the managed file", async () => {
     const dependencies = createDependencies({
       resolveEnv: vi.fn(() => ({

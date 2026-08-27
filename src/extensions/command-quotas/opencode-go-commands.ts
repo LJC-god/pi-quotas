@@ -74,7 +74,11 @@ function errorMessage(error: unknown): string {
 }
 
 function validationFailureMessage(result: Extract<OpenCodeGoResult, { success: false }>): string {
-  if (/\b(?:401|403)\b/u.test(result.error)) {
+  if (
+    result.status === 401 ||
+    result.status === 403 ||
+    /\b(?:401|403)\b/u.test(result.error)
+  ) {
     return "OpenCode Go rejected the dashboard session. Copy a fresh auth cookie and try again.";
   }
   return "OpenCode Go quota validation failed. Check the workspace and auth cookie, then try again.";

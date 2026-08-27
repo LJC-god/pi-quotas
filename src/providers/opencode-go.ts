@@ -60,6 +60,7 @@ export interface OpenCodeGoQuotaResult {
 export interface OpenCodeGoQuotaError {
   success: false;
   error: string;
+  status?: number;
 }
 
 export type OpenCodeGoResult = OpenCodeGoQuotaResult | OpenCodeGoQuotaError;
@@ -130,10 +131,10 @@ export async function queryOpenCodeGoQuota(
     });
 
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
       return {
         success: false,
-        error: `OpenCode Go dashboard error ${response.status}: ${text.slice(0, 120)}`,
+        status: response.status,
+        error: `OpenCode Go dashboard request failed (${response.status})`,
       };
     }
 
@@ -177,7 +178,7 @@ export async function queryOpenCodeGoQuota(
     }
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: "OpenCode Go dashboard request failed",
     };
   }
 }

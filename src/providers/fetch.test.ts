@@ -1,6 +1,7 @@
 import { AuthStorage } from "@mariozechner/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as fetchModule from "./fetch.js";
+import { clearOpenCodeGoConfigCache } from "./opencode-go-config.js";
 import {
   fetchAnthropicQuotasWithToken,
   fetchCodexQuotasWithToken,
@@ -472,5 +473,41 @@ describe("ZAI regional quota fetchers", () => {
     expect(result.success).toBe(true);
     expect(getApiKey).toHaveBeenCalledTimes(1);
     expect(getApiKey).toHaveBeenCalledWith("zai-coding-cn");
+  });
+});
+
+describe("fetchOpenCodeGoQuotas", () => {
+  it("treats an expired dashboard session as actionable configuration", async () => {
+    const previousWorkspace = process.env.OPENCODE_GO_WORKSPACE_ID;
+    const previousCookie = process.env.OPENCODE_GO_AUTH_COOKIE;
+    process.env.OPENCODE_GO_WORKSPACE_ID = "ws_123";
+    process.env.OPENCODE_GO_AUTH_COOKIE = "expired-cookie";
+    clearOpenCodeGoConfigCache();
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(null, { status: 401 }),
+    ) as any;
+
+    try {
+      const result = await fetchModule.fetchOpenCodeGoQuotas(
+        AuthStorage.inMemory({}),
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { kind: "config" },
+      });
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.OPENCODE_GO_WORKSPACE_ID;
+      } else {
+        process.env.OPENCODE_GO_WORKSPACE_ID = previousWorkspace;
+      }
+      if (previousCookie === undefined) {
+        delete process.env.OPENCODE_GO_AUTH_COOKIE;
+      } else {
+        process.env.OPENCODE_GO_AUTH_COOKIE = previousCookie;
+      }
+      clearOpenCodeGoConfigCache();
+    }
   });
 });
