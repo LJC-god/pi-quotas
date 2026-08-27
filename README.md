@@ -8,7 +8,7 @@ Quota monitoring for Pi. Shows remaining usage and rate limits for Anthropic, Op
 
 ## Interface
 
-`/usage` writes one compact, colour-coded quota block into the transcript. Each quota window stays on one line and the entry never enters LLM context. The footer separately shows only the provider used by the active model.
+`/usage` writes one compact quota block into the transcript. Every provider uses its own bright colour across the heading, progress bars, values, and reset times; each quota window stays on one line and the entry never enters LLM context. The footer separately shows only the provider used by the active model.
 
 
 ## Install

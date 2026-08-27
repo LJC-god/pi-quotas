@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-27
+
+### Changed
+- Gave every provider a unique high-saturation colour in `/usage` and applied that colour to the complete provider block, including quota labels, progress bars, values, and reset times. White and neutral-grey quota rows are no longer used.
+
 ## [0.5.1] - 2026-08-27
 
 ### Changed

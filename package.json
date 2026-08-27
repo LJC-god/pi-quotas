@@ -1,6 +1,6 @@
 {
   "name": "@timiliang/pi-quotas",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Compact provider quota transcript and active-provider footer for Pi, with Grok, GLM China, and guided OpenCode Go setup.",
   "license": "MIT",
   "type": "module",
