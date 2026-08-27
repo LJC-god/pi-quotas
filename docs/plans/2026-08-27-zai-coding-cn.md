@@ -10,6 +10,29 @@
 
 ---
 
+### Task 0: Integrate the existing feature commits
+
+**Files:**
+- Merge: commits `5dc5318` and `29dff7c`
+
+**Step 1: Cherry-pick Grok support**
+
+Run: `git cherry-pick 5dc5318`
+
+Expected: the verified Grok provider change applies cleanly.
+
+**Step 2: Cherry-pick inactive-provider filtering**
+
+Run: `git cherry-pick 29dff7c`
+
+Expected: the verified dashboard filtering change applies cleanly; retain both README additions if conflict resolution is required.
+
+**Step 3: Run the combined baseline**
+
+Run: `npm test`
+
+Expected: both existing feature suites pass together before China-provider work starts.
+
 ### Task 1: Register the China provider and command
 
 **Files:**
@@ -94,22 +117,17 @@ Expected: PASS.
 
 **Files:**
 - Modify: `README.md`
-- Merge: commits `5dc5318` and `29dff7c`
 
-**Step 1: Integrate the two existing feature commits**
-
-Cherry-pick Grok support and inactive-provider filtering, resolving README overlap by retaining both features.
-
-**Step 2: Update documentation**
+**Step 1: Update documentation**
 
 Add `GLM China`, `/zai-cn:quotas`, the `zai-coding-cn` auth entry, regional endpoint behavior, and the rule that configured global and China accounts appear separately.
 
-**Step 3: Run the complete verification suite**
+**Step 2: Run the complete verification suite**
 
 Run: `npm test`, `npm run typecheck`, `npm run lint`, `git diff --check`, and `git show --check`.
 
 Expected: every command exits 0 with no test failures or whitespace errors.
 
-**Step 4: Commit**
+**Step 3: Commit**
 
 Commit the China-provider implementation and documentation as `feat: support ZAI Coding CN quotas`.
