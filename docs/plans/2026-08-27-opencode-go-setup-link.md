@@ -1,97 +1,77 @@
-# OpenCode Go Setup Link Implementation Plan
+# OpenCode Go Two-Step Guided Setup Implementation Plan
 
 > **REQUIRED SUB-SKILL:** Use the executing-plans skill to implement this plan task-by-task.
 
-**Goal:** Make `/opencode-go:setup` show a clickable OpenCode account link and precise credential acquisition instructions before collecting any input.
+**Goal:** Replace the separate OpenCode Go guidance confirmation with exactly two self-explanatory input screens for workspace and cookie.
 
-**Architecture:** Add one confirmation-based setup guide in the existing command module. It displays static, non-secret instructions and gates the unchanged workspace/cookie validation and persistence flow; no browser process or new dependency is introduced.
+**Architecture:** Use one private custom-input renderer backed by Pi's plain `Input` for workspace and the existing `MaskedInput` for the cookie. Keep all normalization, validation, persistence, and refresh behavior unchanged.
 
-**Tech Stack:** TypeScript, Pi extension UI API, Vitest, ESLint.
+**Tech Stack:** TypeScript, Pi TUI, Pi extension UI API, Vitest, ESLint.
 
 ---
 
-### Task 1: Specify the setup guide behavior
+### Task 1: Specify the corrected two-step flow
 
 **Files:**
 - Modify: `src/extensions/command-quotas/opencode-go-commands.test.ts`
 
-**Step 1: Write the failing content test**
+**Step 1: Rewrite the test UI driver**
 
-Add a test that runs the setup command and asserts the first confirmation message contains:
+Make the fake custom UI submit a workspace value on its first invocation and a cookie value on its second invocation, while retaining Escape and unavailable-mode coverage.
 
-```text
-https://opencode.ai/auth
-https://opencode.ai/workspace/<workspace-id>/go
-auth
-Application
-Cookies
-```
+**Step 2: Write failing interaction tests**
 
-Also assert the guide is requested before the workspace input.
+Assert that setup never calls `ctx.ui.confirm()`, invokes custom UI twice in order, renders `https://opencode.ai/auth` and the workspace URL pattern on screen one, and renders `Application`, `Cookies`, `auth`, and the copy-only warning on screen two.
 
-**Step 2: Write the failing cancellation test**
+**Step 3: Write failing cancellation tests**
 
-Decline the setup guide and assert that workspace input, masked input, validation, save, and provider refresh are untouched.
+Assert that Escape on step one prevents step two, and Escape on step two prevents validation and saving.
 
-**Step 3: Run the focused test and verify RED**
+**Step 4: Verify RED**
 
 Run: `npm test -- src/extensions/command-quotas/opencode-go-commands.test.ts`
 
-Expected: the new assertions fail because setup currently starts with workspace input and has no guide.
+Expected: failures show that setup still uses a confirmation page and the workspace field is not a guided custom input.
 
-### Task 2: Implement the minimal guide
+### Task 2: Implement the two guided inputs
 
 **Files:**
 - Modify: `src/extensions/command-quotas/opencode-go-commands.ts`
 - Test: `src/extensions/command-quotas/opencode-go-commands.test.ts`
 
-**Step 1: Add a private guide function**
+**Step 1: Add the shared input helper**
 
-Use `ctx.ui.confirm()` with static text that explains the two required values, the `F12 -> Application -> Storage -> Cookies` path, and the instruction to copy only the `auth` value.
+Import Pi's `Input`, build a private guided custom component, and parameterize its title, instruction lines, and masked state.
 
-**Step 2: Gate the setup flow**
+**Step 2: Add workspace and cookie wrappers**
 
-Call the guide at the beginning of the setup handler and return immediately when it is declined.
+Screen one supplies the account link and workspace URL format with plain input. Screen two supplies the developer-tools path and warning with masked input.
 
-**Step 3: Repeat the short cookie path in masked input**
+**Step 3: Remove the standalone setup confirmation**
 
-Add a dim line to the masked dialog without displaying or retaining the supplied secret.
+Call the workspace prompt directly, handle Escape/unavailable results, then call the cookie prompt. Leave `/opencode-go:clear` confirmation unchanged.
 
-**Step 4: Run the focused test and verify GREEN**
+**Step 4: Verify GREEN and commit**
 
 Run: `npm test -- src/extensions/command-quotas/opencode-go-commands.test.ts`
 
 Expected: all focused tests pass.
 
-**Step 5: Commit**
-
-```bash
-git add src/extensions/command-quotas/opencode-go-commands.ts src/extensions/command-quotas/opencode-go-commands.test.ts
-git commit -m "feat: guide OpenCode Go quota setup"
-```
+Commit: `fix: make OpenCode Go setup a guided two-step flow`
 
 ### Task 3: Document and deliver
 
 **Files:**
 - Modify: `README.md`
 
-**Step 1: Update the usage note**
+**Step 1: Correct the README**
 
-Document that the command shows `https://opencode.ai/auth`, lists the workspace URL and `auth` cookie requirements, and does not launch the browser.
+Describe the two inline guided screens and remove wording that implies a separate pre-input page.
 
-**Step 2: Run complete verification**
+**Step 2: Verify the complete tree**
 
-Run:
+Run `npm test`, `npm run typecheck`, `npm run lint`, `git diff --check`, and `npm pack --dry-run --json`.
 
-```bash
-npm test
-npm run typecheck
-npm run lint
-git diff --check
-```
+**Step 3: Push and install**
 
-Expected: zero failures or errors.
-
-**Step 3: Commit, push, and install**
-
-Commit the documentation, push `integration/grok-active-zai-cn`, install the resulting exact SHA through `pi install`, and verify the settings entry, installed HEAD, and remote branch all match.
+Push `integration/grok-active-zai-cn`, install the resulting exact commit, and verify settings, installed HEAD, worktree HEAD, and remote SHA are identical.

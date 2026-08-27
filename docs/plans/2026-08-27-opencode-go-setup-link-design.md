@@ -1,21 +1,27 @@
-# OpenCode Go setup link design
+# OpenCode Go two-step guided setup design
 
 ## Context and goal
 
-The existing `/opencode-go:setup` command starts by asking for a workspace URL or ID. That assumes the user already knows which dashboard page to visit and which browser credential the quota endpoint requires. The command should instead explain the complete preparation step before asking for input, while respecting the user's choice not to launch a browser automatically.
+The first guidance revision added a confirmation page before the existing workspace and cookie prompts. Although it exposed the right information, it made the flow less intuitive by separating instructions from the fields they explain. The setup must instead have exactly two screens, with each screen combining its guidance and input.
 
-## Interaction
+## Step 1: workspace
 
-The command first shows a confirmation dialog containing the stable OpenCode account entry point, `https://opencode.ai/auth`. It identifies the two required values: the full Go workspace page URL in the form `https://opencode.ai/workspace/<workspace-id>/go`, and only the value of the `auth` cookie for `https://opencode.ai`. The instructions explain how to find the cookie in browser developer tools through `Application` / `Storage` / `Cookies`, and explicitly warn against copying all cookies.
+The first focused input screen is titled `OpenCode Go - Step 1/2: Workspace`. It displays the plain HTTPS account entry point `https://opencode.ai/auth`, tells the user to sign in and enter the Go workspace page, and shows the expected address format `https://opencode.ai/workspace/<workspace-id>/go`. The input directly below accepts either that complete URL or the raw workspace ID, preserving the existing normalization and host/path safety checks.
 
-The URL remains plain HTTPS text so terminals such as Windows Terminal can expose it through Ctrl+click without the plugin spawning a browser process. The dialog offers Continue and Cancel through Pi's existing confirmation primitive. Cancel exits before the workspace prompt and does not validate, persist, or emit a refresh event. Continue enters the existing workspace and masked-cookie flow unchanged.
+There is no preceding confirmation dialog. Enter advances to the cookie screen only after a value is supplied; Escape cancels the command before any credential is validated or saved. The plugin does not launch a browser or copy anything automatically.
 
-The masked cookie dialog repeats a short browser path so the user does not need to remember the earlier instructions. It continues to state that the value is masked and never written to session history. No credential is copied to notifications, command arguments, session messages, logs, or tests.
+## Step 2: cookie
 
-## Architecture and compatibility
+The second focused input screen is titled `OpenCode Go - Step 2/2: auth Cookie`. It shows the browser path `F12 > Application > Storage > Cookies > https://opencode.ai > auth > Value`, instructs the user to copy only the Value rather than all cookies, and places the masked input directly underneath. Enter runs the unchanged validation-and-save flow; Escape cancels without persistence.
 
-The change stays inside `opencode-go-commands.ts`: exported constants are unnecessary, browser launching is deliberately excluded, and no platform-specific dependency is introduced. A private guide function owns the static copy and returns the confirmation result. Existing dependency injection and validation/storage behavior remain unchanged.
+The cookie remains masked during paste and editing and is never placed in command arguments, notifications, logs, or Pi session history. Validation errors continue to be sanitized.
+
+## Architecture
+
+A small private guided-input helper in `opencode-go-commands.ts` owns the shared custom TUI behavior. It receives a title, instruction lines, and whether the underlying Pi `Input` should be plain or `MaskedInput`. Workspace and cookie wrappers supply their own copy and input type. This avoids duplicated focus, submit, Escape, render, and disposal logic while keeping the flow explicitly two-stage.
+
+The clear command retains its confirmation dialog. Only setup removes `confirm()`. Existing normalization, validation, atomic storage, cache invalidation, environment precedence, and footer refresh behavior stay unchanged.
 
 ## Testing
 
-Command tests verify that the first dialog contains the official link, both required values, the cookie lookup path, and the limited-cookie warning. A cancellation test proves no later input, validation, save, or event occurs. Existing success, validation, masking, environment precedence, and clear-command tests continue to pass. Final verification includes the complete Vitest suite, type checking, linting, and `git diff --check`.
+Command tests verify that setup never calls the confirmation primitive, creates exactly two custom inputs in order, renders the account link and workspace format on the first, and renders the browser cookie path and limited-copy warning on the second. Cancellation is covered independently at both steps. Existing validation, secret redaction, persistence, failure, environment, and clear-command tests remain green. Final delivery requires the complete Vitest suite, type checking, linting, `git diff --check`, package inspection, fork push, and exact-SHA installation verification.
