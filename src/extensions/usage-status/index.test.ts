@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import usageStatusExtension from "./index.js";
 import { fetchProviderQuotas } from "../../lib/quotas.js";
@@ -7,6 +7,7 @@ vi.mock("../../config.js", () => ({
   QUOTAS_CONFIG_UPDATED_EVENT: "quotas:config:updated",
   QUOTAS_EXTENSIONS_REGISTER_EVENT: "quotas:extensions:register",
   QUOTAS_EXTENSIONS_REQUEST_EVENT: "quotas:extensions:request",
+  QUOTAS_PROVIDER_CONFIG_UPDATED_EVENT: "quotas:provider-config:updated",
   configLoader: {
     load: vi.fn(async () => undefined),
     getConfig: vi.fn(() => ({
@@ -21,7 +22,19 @@ vi.mock("../../config.js", () => ({
 }));
 
 vi.mock("../../lib/quotas.js", () => ({
-  isSupportedProvider: (provider: string | undefined) => provider === "anthropic",
+  isSupportedProvider: (provider: string | undefined) =>
+    [
+      "anthropic",
+      "openai-codex",
+      "github-copilot",
+      "openrouter",
+      "synthetic",
+      "xai",
+      "zai",
+      "zai-coding-cn",
+      "opencode-go",
+      "kimi-coding",
+    ].includes(provider ?? ""),
   fetchProviderQuotas: vi.fn(async () => ({
     success: true,
     data: { provider: "anthropic", windows: [] },
@@ -77,6 +90,7 @@ function createFakePi() {
 
 function createContext(provider: string) {
   let stale = false;
+  let currentProvider = provider;
   const setStatus = vi.fn(() => {
     if (stale) throw new Error(STALE_CONTEXT_ERROR);
   });
@@ -88,7 +102,7 @@ function createContext(provider: string) {
     },
     get model() {
       if (stale) throw new Error(STALE_CONTEXT_ERROR);
-      return { provider };
+      return { provider: currentProvider };
     },
     modelRegistry: { authStorage: {} },
     ui: {
@@ -102,9 +116,49 @@ function createContext(provider: string) {
     setStale() {
       stale = true;
     },
+    setProvider(provider: string) {
+      currentProvider = provider;
+    },
     setStatus,
   };
 }
+
+function quotaWindow(provider: "anthropic" | "openai-codex" | "opencode-go", label: string) {
+  return {
+    provider,
+    label,
+    usedPercent: 25,
+    resetsAt: new Date("2026-08-28T00:00:00.000Z"),
+    windowSeconds: 3600,
+    usedValue: 25,
+    limitValue: 100,
+  };
+}
+
+function successResult(
+  provider: "anthropic" | "openai-codex" | "opencode-go",
+  label: string,
+) {
+  return {
+    success: true as const,
+    data: { provider, windows: [quotaWindow(provider, label)] },
+  };
+}
+
+function lastStatusText(setStatus: ReturnType<typeof vi.fn>): string | undefined {
+  const calls = setStatus.mock.calls as unknown as Array<
+    [string, string | undefined]
+  >;
+  return calls.at(-1)?.[1];
+}
+
+beforeEach(() => {
+  vi.mocked(fetchProviderQuotas).mockReset();
+  vi.mocked(fetchProviderQuotas).mockResolvedValue({
+    success: true,
+    data: { provider: "anthropic", windows: [] },
+  } as any);
+});
 
 afterEach(() => {
   vi.useRealTimers();
@@ -178,5 +232,142 @@ describe("usage-status extension lifecycle", () => {
     const last = calls[calls.length - 1]?.[1];
     expect(last).toBeUndefined();
     expect(calls.some((c) => c[1] === "usage unavailable")).toBe(false);
+  });
+
+  it("labels quota data with the active model provider", async () => {
+    vi.mocked(fetchProviderQuotas).mockResolvedValueOnce(
+      successResult("openai-codex", "5h") as any,
+    );
+    const { pi, emitExtensionEvent } = createFakePi();
+    const { ctx, setStatus } = createContext("openai-codex");
+
+    await usageStatusExtension(pi);
+    await emitExtensionEvent("session_start", ctx);
+
+    await vi.waitFor(() => {
+      expect(setStatus).toHaveBeenCalledWith(
+        "pi-quotas-usage",
+        expect.stringContaining("Codex"),
+      );
+    });
+  });
+
+  it("clears old provider data immediately when the model changes", async () => {
+    let resolveAnthropic: ((value: ReturnType<typeof successResult>) => void) | undefined;
+    vi.mocked(fetchProviderQuotas).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveAnthropic = resolve as typeof resolveAnthropic;
+        }),
+    );
+    const { pi, emitExtensionEvent } = createFakePi();
+    const { ctx, setProvider, setStatus } = createContext("anthropic");
+    await usageStatusExtension(pi);
+    await emitExtensionEvent("session_start", ctx);
+    setProvider("openai-codex");
+
+    await emitExtensionEvent("model_select", ctx);
+
+    expect(setStatus).toHaveBeenLastCalledWith("pi-quotas-usage", undefined);
+    resolveAnthropic?.(successResult("anthropic", "AnthropicOnly"));
+  });
+
+  it("does not let an old in-flight provider overwrite the selected provider", async () => {
+    let resolveAnthropic: ((value: ReturnType<typeof successResult>) => void) | undefined;
+    vi.mocked(fetchProviderQuotas)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveAnthropic = resolve as typeof resolveAnthropic;
+          }),
+      )
+      .mockResolvedValueOnce(successResult("openai-codex", "CodexOnly") as any);
+    const { pi, emitExtensionEvent } = createFakePi();
+    const { ctx, setProvider, setStatus } = createContext("anthropic");
+    await usageStatusExtension(pi);
+    await emitExtensionEvent("session_start", ctx);
+    setProvider("openai-codex");
+    await emitExtensionEvent("model_select", ctx);
+
+    resolveAnthropic?.(successResult("anthropic", "AnthropicOnly"));
+
+    await vi.waitFor(() => {
+      const text = lastStatusText(setStatus);
+      expect(text).toContain("CodexOnly");
+      expect(text).not.toContain("AnthropicOnly");
+    });
+  });
+
+  it("retains last-good data with a stale marker after a transient same-provider failure", async () => {
+    vi.mocked(fetchProviderQuotas)
+      .mockResolvedValueOnce(successResult("openai-codex", "5h") as any)
+      .mockResolvedValueOnce({
+        success: false,
+        error: { kind: "network", message: "offline" },
+      } as any);
+    const { pi, emitExtensionEvent } = createFakePi();
+    const { ctx, setStatus } = createContext("openai-codex");
+    await usageStatusExtension(pi);
+    await emitExtensionEvent("session_start", ctx);
+    await vi.waitFor(() =>
+      expect(lastStatusText(setStatus)).toContain("Codex"),
+    );
+
+    await emitExtensionEvent("turn_end", ctx);
+
+    await vi.waitFor(() => {
+      const text = lastStatusText(setStatus);
+      expect(text).toContain("Codex");
+      expect(text).toContain("~");
+      expect(text).not.toContain("usage unavailable");
+    });
+  });
+
+  it("shows a compact provider unavailable status without last-good data", async () => {
+    vi.mocked(fetchProviderQuotas).mockResolvedValueOnce({
+      success: false,
+      error: { kind: "timeout", message: "timed out" },
+    } as any);
+    const { pi, emitExtensionEvent } = createFakePi();
+    const { ctx, setStatus } = createContext("openai-codex");
+    await usageStatusExtension(pi);
+
+    await emitExtensionEvent("session_start", ctx);
+
+    await vi.waitFor(() => {
+      expect(lastStatusText(setStatus)).toContain("Codex: unavailable");
+    });
+  });
+
+  it("shows an OpenCode Go setup action for missing dashboard configuration", async () => {
+    vi.mocked(fetchProviderQuotas).mockResolvedValueOnce({
+      success: false,
+      error: { kind: "config", message: "No OpenCode Go config" },
+    } as any);
+    const { pi, emitExtensionEvent } = createFakePi();
+    const { ctx, setStatus } = createContext("opencode-go");
+    await usageStatusExtension(pi);
+
+    await emitExtensionEvent("session_start", ctx);
+
+    await vi.waitFor(() => {
+      expect(lastStatusText(setStatus)).toContain("Go: setup required");
+    });
+  });
+
+  it("refreshes active quota data after provider configuration changes", async () => {
+    vi.mocked(fetchProviderQuotas)
+      .mockResolvedValueOnce(successResult("opencode-go", "5h Rolling") as any)
+      .mockResolvedValueOnce(successResult("opencode-go", "Weekly") as any);
+    const { pi, emitExtensionEvent, emitBusEvent } = createFakePi();
+    const { ctx, setStatus } = createContext("opencode-go");
+    await usageStatusExtension(pi);
+    await emitExtensionEvent("session_start", ctx);
+    await vi.waitFor(() => expect(fetchProviderQuotas).toHaveBeenCalledTimes(1));
+
+    emitBusEvent("quotas:provider-config:updated", { provider: "opencode-go" });
+
+    await vi.waitFor(() => expect(fetchProviderQuotas).toHaveBeenCalledTimes(2));
+    expect(lastStatusText(setStatus)).toContain("weekly:");
   });
 });

@@ -245,4 +245,59 @@ describe("formatWindowStatus", () => {
     expect(result).toContain("(↺now)");
     expect(result).not.toContain("(↺in now)");
   });
+
+  it.each([
+    ["anthropic", "Claude"],
+    ["openai-codex", "Codex"],
+    ["github-copilot", "Copilot"],
+    ["openrouter", "OpenRouter"],
+    ["synthetic", "Synthetic"],
+    ["xai", "Grok"],
+    ["zai", "Z.ai"],
+    ["zai-coding-cn", "GLM CN"],
+    ["opencode-go", "Go"],
+    ["kimi-coding", "Kimi"],
+  ] as const)("prefixes %s footer data with %s", (provider, label) => {
+    const result = formatStatus(
+      { ui: { theme } } as any,
+      [
+        {
+          label: "Weekly",
+          usedPercent: 25,
+          severity: "none",
+          resetsAt: null,
+          limited: false,
+          usedValue: 25,
+          limitValue: 100,
+        },
+      ],
+      provider,
+    );
+
+    expect(result).toContain(`[accent]${label}[/accent]`);
+  });
+
+  it("keeps the active OpenRouter budget visible in the labelled footer", () => {
+    const windows = toStatusWindows([
+      {
+        provider: "openrouter",
+        label: "Monthly Budget",
+        usedPercent: 30,
+        resetsAt: new Date(0),
+        windowSeconds: 0,
+        usedValue: 15,
+        limitValue: 50,
+        isCurrency: true,
+      },
+    ]);
+
+    const result = formatStatus(
+      { ui: { theme } } as any,
+      windows,
+      "openrouter",
+    );
+
+    expect(result).toContain("[accent]OpenRouter[/accent]");
+    expect(result).toContain("$15.00/$50.00");
+  });
 });

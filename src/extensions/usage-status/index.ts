@@ -6,7 +6,9 @@ import {
   QUOTAS_CONFIG_UPDATED_EVENT,
   QUOTAS_EXTENSIONS_REGISTER_EVENT,
   QUOTAS_EXTENSIONS_REQUEST_EVENT,
+  QUOTAS_PROVIDER_CONFIG_UPDATED_EVENT,
   type QuotasConfigUpdatedPayload,
+  type QuotasProviderConfigUpdatedPayload,
   configLoader,
 } from "../../config.js";
 
@@ -24,7 +26,10 @@ import {
   assessWindow,
   formatTimeRemaining,
 } from "../../utils/quotas-severity.js";
-import type { QuotaWindow } from "../../types/quotas.js";
+import type {
+  QuotaWindow,
+  SupportedQuotaProvider,
+} from "../../types/quotas.js";
 import { formatWindowStatus, type WindowStatus } from "./format-status.js";
 
 const EXTENSION_ID = "pi-quotas-usage";
@@ -50,15 +55,34 @@ function formatFooterResetTime(resetsAt: string): string {
   return remaining === "now" ? "now" : `in ${remaining}`;
 }
 
-export function formatStatus(ctx: Pick<ExtensionContext, "ui">, windows: WindowStatus[]): string {
+const FOOTER_PROVIDER_LABELS: Record<SupportedQuotaProvider, string> = {
+  anthropic: "Claude",
+  "openai-codex": "Codex",
+  "github-copilot": "Copilot",
+  openrouter: "OpenRouter",
+  synthetic: "Synthetic",
+  xai: "Grok",
+  zai: "Z.ai",
+  "zai-coding-cn": "GLM CN",
+  "opencode-go": "Go",
+  "kimi-coding": "Kimi",
+};
+
+export function formatStatus(
+  ctx: Pick<ExtensionContext, "ui">,
+  windows: WindowStatus[],
+  provider?: SupportedQuotaProvider,
+): string {
   const theme = ctx.ui.theme;
-  return windows
+  const windowStatus = windows
     .map((w) => {
       const core = formatWindowStatus(theme, w);
       const reset = w.resetsAt ? theme.fg("dim", ` (↺${formatFooterResetTime(w.resetsAt)})`) : "";
       return `${core}${reset}`;
     })
     .join(" ");
+  if (!provider) return windowStatus;
+  return `${theme.fg("accent", FOOTER_PROVIDER_LABELS[provider])} · ${windowStatus}`;
 }
 
 const ANTHROPIC_SUBSCRIPTION_WINDOW_LABELS = new Set([
@@ -96,16 +120,27 @@ export function toStatusWindows(windows: QuotaWindow[]): WindowStatus[] {
 export function formatStatusForFooter(
   ctx: Pick<ExtensionContext, "ui">,
   windows: WindowStatus[],
+  provider?: SupportedQuotaProvider,
 ): string | undefined {
   if (windows.length === 0) return undefined;
-  return formatStatus(ctx, windows);
+  return formatStatus(ctx, windows, provider);
+}
+
+function formatProviderMessage(
+  ctx: Pick<ExtensionContext, "ui">,
+  provider: SupportedQuotaProvider,
+  message: string,
+): string {
+  return `${ctx.ui.theme.fg("accent", FOOTER_PROVIDER_LABELS[provider])}: ${ctx.ui.theme.fg("warning", message)}`;
 }
 
 function createStatusRefresher() {
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let activeContext: ExtensionContext | undefined;
-  let activeProvider: string | undefined;
-  let lastStatus: WindowStatus[] | undefined;
+  let activeProvider: SupportedQuotaProvider | undefined;
+  let lastStatus:
+    | { provider: SupportedQuotaProvider; windows: WindowStatus[] }
+    | undefined;
   let inFlight = false;
   let queued = false;
 
@@ -138,6 +173,22 @@ function createStatusRefresher() {
     }
   }
 
+  function setTransientFailureStatus(
+    ctx: ExtensionContext,
+    provider: SupportedQuotaProvider,
+  ): void {
+    const previousWindows =
+      lastStatus?.provider === provider ? lastStatus.windows : undefined;
+    setStatusSafely(ctx, (currentCtx) => {
+      const previous = previousWindows
+        ? formatStatusForFooter(currentCtx, previousWindows, provider)
+        : undefined;
+      return previous
+        ? `${previous}${currentCtx.ui.theme.fg("dim", " ~")}`
+        : formatProviderMessage(currentCtx, provider, "unavailable");
+    });
+  }
+
   async function update(ctx: ExtensionContext, requestGeneration = generation): Promise<void> {
     if (inFlight) {
       queued = true;
@@ -157,22 +208,37 @@ function createStatusRefresher() {
         // OAuth subscription usage) is expected, not a failure — show nothing
         // rather than a persistent "usage unavailable" warning.
         if (result.error.kind === "not_applicable") {
+          lastStatus = undefined;
           setStatusSafely(ctx, undefined);
           return;
         }
-        setStatusSafely(ctx, (ctx) => ctx.ui.theme.fg("warning", "usage unavailable"));
+        if (result.error.kind === "config") {
+          lastStatus = undefined;
+          setStatusSafely(
+            ctx,
+            provider === "opencode-go"
+              ? (ctx) => formatProviderMessage(ctx, provider, "setup required")
+              : undefined,
+          );
+          return;
+        }
+        setTransientFailureStatus(ctx, provider);
         return;
       }
       const windows: WindowStatus[] = toStatusWindows(result.data.windows);
-      const status = formatStatusForFooter(ctx, windows);
-      lastStatus = status === undefined ? undefined : windows;
+      const status = formatStatusForFooter(ctx, windows, provider);
+      lastStatus =
+        status === undefined ? undefined : { provider, windows };
       setStatusSafely(ctx, status);
     } catch (error) {
       if (isStaleContextError(error)) {
         if (activeContext === ctx) deactivate();
         return;
       }
-      setStatusSafely(ctx, (ctx) => ctx.ui.theme.fg("warning", "usage unavailable"));
+      if (requestGeneration !== generation || activeContext !== ctx) return;
+      const provider = activeProvider;
+      if (!provider) return;
+      setTransientFailureStatus(ctx, provider);
     } finally {
       inFlight = false;
       if (queued && activeContext) {
@@ -185,10 +251,18 @@ function createStatusRefresher() {
   return {
     async refreshFor(ctx: ExtensionContext): Promise<void> {
       activeContext = ctx;
-      activeProvider = getContextProvider(ctx);
+      const requestedProvider = getContextProvider(ctx);
+      const providerChanged = requestedProvider !== activeProvider;
+      if (providerChanged) {
+        lastStatus = undefined;
+        setStatusSafely(ctx, undefined);
+      }
+      activeProvider = isSupportedProvider(requestedProvider)
+        ? requestedProvider
+        : undefined;
       generation++;
       const requestGeneration = generation;
-      if (!activeProvider || !isSupportedProvider(activeProvider)) {
+      if (!activeProvider) {
         setStatusSafely(ctx, undefined);
         return;
       }
@@ -207,7 +281,15 @@ function createStatusRefresher() {
     },
     renderLast(ctx: ExtensionContext): boolean {
       if (!lastStatus) return false;
-      return setStatusSafely(ctx, (ctx) => formatStatusForFooter(ctx, lastStatus ?? []));
+      return setStatusSafely(ctx, (ctx) =>
+        lastStatus
+          ? formatStatusForFooter(
+            ctx,
+            lastStatus.windows,
+            lastStatus.provider,
+          )
+          : undefined,
+      );
     },
   };
 }
@@ -251,6 +333,19 @@ export default async function (pi: ExtensionAPI) {
       scheduleRefresh(currentContext);
     }
   }));
+
+  unsubscribeEventBusListeners.push(
+    pi.events.on(QUOTAS_PROVIDER_CONFIG_UPDATED_EVENT, (data: unknown) => {
+      const { provider } = data as QuotasProviderConfigUpdatedPayload;
+      if (
+        enabled &&
+        currentContext &&
+        provider === getContextProvider(currentContext)
+      ) {
+        scheduleRefresh(currentContext);
+      }
+    }),
+  );
 
   /**
    * Whether to suppress our footer because pi-synthetic is showing
