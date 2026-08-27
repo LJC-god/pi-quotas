@@ -4,6 +4,7 @@ export type SupportedQuotaProvider =
   | "github-copilot"
   | "openrouter"
   | "synthetic"
+  | "xai"
   | "zai"
   | "opencode-go"
   | "kimi-coding";

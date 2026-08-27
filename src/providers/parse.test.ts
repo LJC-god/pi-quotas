@@ -5,6 +5,7 @@ import { parseGitHubCopilotUsage } from "./providers.js";
 import { parseKimiCodingUsage } from "./providers.js";
 import { parseOpenRouterUsage } from "./providers.js";
 import { parseSyntheticUsage } from "./providers.js";
+import { parseXaiUsage } from "./providers.js";
 import { parseZaiUsage } from "./providers.js";
 import { parseOpenCodeGoUsage } from "./providers.js";
 
@@ -858,5 +859,68 @@ describe("parseZaiUsage", () => {
     expect(parseZaiUsage({})).toHaveLength(0);
     expect(parseZaiUsage({ data: {} })).toHaveLength(0);
     expect(parseZaiUsage({ data: { limits: [] } })).toHaveLength(0);
+  });
+});
+
+describe("parseXaiUsage", () => {
+  it("maps weekly credits, product usage, and on-demand spend", () => {
+    const windows = parseXaiUsage({
+      config: {
+        currentPeriod: {
+          type: "USAGE_PERIOD_TYPE_WEEKLY",
+          start: "2026-08-25T17:13:55.543809+00:00",
+          end: "2026-09-01T17:13:55.543809+00:00",
+        },
+        creditUsagePercent: 17,
+        productUsage: [
+          { product: "GrokBuild", usagePercent: 10 },
+          { product: "GrokImagine", usagePercent: 6 },
+          { product: "GrokChat", usagePercent: 1 },
+          { product: "GrokTasks", usagePercent: null },
+        ],
+        onDemandCap: { val: 100 },
+        onDemandUsed: { val: 25 },
+      },
+    });
+
+    expect(windows).toHaveLength(5);
+    expect(windows[0]).toMatchObject({
+      provider: "xai",
+      label: "Week (credits)",
+      usedPercent: 17,
+      windowSeconds: 7 * 24 * 60 * 60,
+      usedValue: 17,
+      limitValue: 100,
+    });
+    expect(windows[0].resetsAt.toISOString()).toBe(
+      "2026-09-01T17:13:55.543Z",
+    );
+    expect(windows.slice(1, 4).map((window) => window.label)).toEqual([
+      "Build",
+      "Imagine",
+      "Chat",
+    ]);
+    expect(windows[4]).toMatchObject({
+      provider: "xai",
+      label: "On-demand",
+      usedPercent: 25,
+      usedValue: 25,
+      limitValue: 100,
+      isCurrency: true,
+    });
+  });
+
+  it("does not manufacture windows from missing or invalid limits", () => {
+    expect(parseXaiUsage({})).toEqual([]);
+    expect(
+      parseXaiUsage({
+        config: {
+          creditUsagePercent: "invalid",
+          productUsage: [{ product: "GrokBuild", usagePercent: null }],
+          onDemandCap: { val: 0 },
+          onDemandUsed: { val: 4 },
+        },
+      }),
+    ).toEqual([]);
   });
 });

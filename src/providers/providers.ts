@@ -749,3 +749,92 @@ export function parseZaiUsage(data: any): QuotaWindow[] {
   collected.sort((a, b) => a.windowSeconds - b.windowSeconds);
   return collected;
 }
+
+// Grok subscription quotas. The CLI billing endpoint exposes one current
+// credit period, optional per-product usage percentages, and an on-demand cap.
+export function parseXaiUsage(data: any): QuotaWindow[] {
+  const config = data?.config;
+  if (!config || typeof config !== "object") return [];
+
+  const start = parseDateish(
+    config.currentPeriod?.start ?? config.billingPeriodStart,
+  );
+  const end = parseDateish(
+    config.currentPeriod?.end ?? config.billingPeriodEnd,
+  );
+  const periodMs = end.getTime() - start.getTime();
+  if (!Number.isFinite(periodMs) || periodMs <= 0) return [];
+
+  const windowSeconds = Math.round(periodMs / 1000);
+  const isWeekly =
+    config.currentPeriod?.type === "USAGE_PERIOD_TYPE_WEEKLY" ||
+    config.isUnifiedBillingUser === true;
+  const periodLabel = isWeekly ? "Week" : "Month";
+  const windows: QuotaWindow[] = [];
+
+  const creditUsagePercent = Number(config.creditUsagePercent);
+  if (
+    config.creditUsagePercent != null &&
+    Number.isFinite(creditUsagePercent)
+  ) {
+    windows.push({
+      provider: "xai",
+      label: `${periodLabel} (credits)`,
+      usedPercent: creditUsagePercent,
+      resetsAt: end,
+      windowSeconds,
+      usedValue: creditUsagePercent,
+      limitValue: 100,
+      showPace: false,
+      nextLabel: "Resets",
+    });
+  }
+
+  const products = Array.isArray(config.productUsage)
+    ? config.productUsage
+    : [];
+  for (const product of products.slice(0, 8)) {
+    if (product?.usagePercent == null) continue;
+    const usagePercent = Number(product?.usagePercent);
+    if (!Number.isFinite(usagePercent)) continue;
+    const label = String(product?.product ?? "")
+      .replace(/^Grok/i, "")
+      .trim();
+    if (!label) continue;
+    windows.push({
+      provider: "xai",
+      label,
+      usedPercent: usagePercent,
+      resetsAt: end,
+      windowSeconds,
+      usedValue: usagePercent,
+      limitValue: 100,
+      showPace: false,
+      nextLabel: "Resets",
+    });
+  }
+
+  const onDemandLimit = Number(config.onDemandCap?.val);
+  const onDemandUsed = Number(config.onDemandUsed?.val);
+  if (
+    Number.isFinite(onDemandLimit) &&
+    Number.isFinite(onDemandUsed) &&
+    onDemandLimit > 0
+  ) {
+    windows.push({
+      provider: "xai",
+      label: "On-demand",
+      usedPercent: safePercent(onDemandUsed, onDemandLimit),
+      resetsAt: end,
+      windowSeconds,
+      usedValue: onDemandUsed,
+      limitValue: onDemandLimit,
+      isCurrency: true,
+      showPace: false,
+      limited: onDemandUsed >= onDemandLimit,
+      nextLabel: "Resets",
+    });
+  }
+
+  return windows;
+}

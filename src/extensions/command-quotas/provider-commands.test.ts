@@ -41,6 +41,15 @@ describe("getProviderCommandInfo", () => {
     });
   });
 
+  it("maps xai to grok:quotas", () => {
+    const info = getProviderCommandInfo("xai");
+    expect(info).toMatchObject<Partial<ProviderCommandInfo>>({
+      provider: "xai",
+      commandName: "grok:quotas",
+      title: "Grok Quotas",
+    });
+  });
+
   it("maps zai to zai:quotas", () => {
     const info = getProviderCommandInfo("zai");
     expect(info).toMatchObject<Partial<ProviderCommandInfo>>({

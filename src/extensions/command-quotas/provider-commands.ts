@@ -40,6 +40,12 @@ export function getProviderCommandInfo(
         commandName: "synthetic:quotas",
         title: "Synthetic Quotas",
       };
+    case "xai":
+      return {
+        provider,
+        commandName: "grok:quotas",
+        title: "Grok Quotas",
+      };
     case "zai":
       return {
         provider,

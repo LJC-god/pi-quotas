@@ -11,6 +11,7 @@ import {
   parseKimiCodingUsage,
   parseOpenRouterUsage,
   parseSyntheticUsage,
+  parseXaiUsage,
   parseZaiUsage,
   parseOpenCodeGoUsage,
 } from "./providers.js";
@@ -500,12 +501,43 @@ export async function fetchZaiQuotas(
   return fetchZaiQuotasWithToken(await providerAccessToken(authStorage, "zai"), signal);
 }
 
+export async function fetchXaiQuotasWithToken(
+  accessToken: string | undefined,
+  signal?: AbortSignal,
+): Promise<QuotasResult> {
+  if (!accessToken) return failure("No xAI OAuth token found", "config");
+
+  const result = await fetchJson(
+    "https://cli-chat-proxy.grok.com/v1/billing?format=credits",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+    signal,
+  );
+  if (!result.ok) return failure(result.message, result.kind);
+  return success("xai", parseXaiUsage(result.data));
+}
+
+export async function fetchXaiQuotas(
+  authStorage: AuthStorage,
+  signal?: AbortSignal,
+): Promise<QuotasResult> {
+  return fetchXaiQuotasWithToken(
+    await providerAccessToken(authStorage, "xai"),
+    signal,
+  );
+}
+
 export const PROVIDER_FETCHERS = {
   anthropic: fetchAnthropicQuotas,
   "openai-codex": fetchCodexQuotas,
   "github-copilot": fetchGitHubCopilotQuotas,
   openrouter: fetchOpenRouterQuotas,
   synthetic: fetchSyntheticQuotas,
+  xai: fetchXaiQuotas,
   zai: fetchZaiQuotas,
   "opencode-go": fetchOpenCodeGoQuotas,
   "kimi-coding": fetchKimiCodingQuotas,
