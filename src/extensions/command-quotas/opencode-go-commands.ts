@@ -2,6 +2,7 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
 } from "@mariozechner/pi-coding-agent";
+import { Input } from "@mariozechner/pi-tui";
 import { QUOTAS_PROVIDER_CONFIG_UPDATED_EVENT } from "../../config.js";
 import { clearQuotaCache } from "../../lib/quotas.js";
 import {
@@ -38,34 +39,21 @@ const DEFAULT_DEPENDENCIES: OpenCodeGoCommandDependencies = {
   clearQuotaCache: () => clearQuotaCache("opencode-go"),
 };
 
-async function showSetupGuide(
-  ctx: ExtensionCommandContext,
-): Promise<boolean> {
-  return ctx.ui.confirm(
-    "Prepare OpenCode Go quota access",
-    [
-      "Open this link manually (Ctrl+click or copy):",
-      "https://opencode.ai/auth",
-      "",
-      "You need two values:",
-      "1. Go workspace URL:",
-      "   https://opencode.ai/workspace/<workspace-id>/go",
-      "2. The value of the auth cookie for https://opencode.ai",
-      "",
-      "Find the cookie in: F12 > Application > Storage > Cookies",
-      "  > https://opencode.ai > auth > Value",
-      "Copy only the auth value, not all cookies.",
-      "",
-      "Continue after you have both values.",
-    ].join("\n"),
-  );
+interface GuidedInputLine {
+  text: string;
+  accent?: boolean;
 }
 
-async function promptMaskedCookie(
+async function promptGuidedInput(
   ctx: ExtensionCommandContext,
+  options: {
+    title: string;
+    lines: GuidedInputLine[];
+    masked?: boolean;
+  },
 ): Promise<string | null | undefined> {
   return ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
-    const input = new MaskedInput();
+    const input = options.masked ? new MaskedInput() : new Input();
     input.focused = true;
     input.onSubmit = (value) => done(value);
     input.onEscape = () => done(null);
@@ -73,13 +61,10 @@ async function promptMaskedCookie(
     return {
       render(width: number): string[] {
         return [
-          theme.bold(theme.fg("accent", "OpenCode Go dashboard auth cookie")),
-          theme.fg(
-            "dim",
-            "Find it: F12 > Application > Storage > Cookies > opencode.ai > auth > Value.",
+          theme.bold(theme.fg("accent", options.title)),
+          ...options.lines.map((line) =>
+            theme.fg(line.accent ? "accent" : "dim", line.text),
           ),
-          theme.fg("dim", "Copy only the auth value, not all cookies."),
-          theme.fg("dim", "The value is masked and is never written to session history."),
           ...input.render(width),
         ];
       },
@@ -94,6 +79,39 @@ async function promptMaskedCookie(
         input.setValue("");
       },
     };
+  });
+}
+
+async function promptWorkspace(
+  ctx: ExtensionCommandContext,
+): Promise<string | null | undefined> {
+  return promptGuidedInput(ctx, {
+    title: "OpenCode Go - Step 1/2: Workspace",
+    lines: [
+      { text: "Open this link manually (Ctrl+click or copy):" },
+      { text: "https://opencode.ai/auth", accent: true },
+      { text: "Sign in, open your Go workspace, then copy its page URL:" },
+      {
+        text: "https://opencode.ai/workspace/<workspace-id>/go",
+        accent: true,
+      },
+      { text: "Paste that URL or the raw workspace ID below." },
+    ],
+  });
+}
+
+async function promptMaskedCookie(
+  ctx: ExtensionCommandContext,
+): Promise<string | null | undefined> {
+  return promptGuidedInput(ctx, {
+    title: "OpenCode Go - Step 2/2: auth Cookie",
+    masked: true,
+    lines: [
+      { text: "Find it: F12 > Application > Storage > Cookies" },
+      { text: "> https://opencode.ai > auth > Value" },
+      { text: "Copy only the auth value, not all cookies." },
+      { text: "The value is masked and is never written to session history." },
+    ],
   });
 }
 
@@ -125,14 +143,15 @@ export function registerOpenCodeGoCommands(
   pi.registerCommand("opencode-go:setup", {
     description: "Configure OpenCode Go dashboard quota access",
     handler: async (_args, ctx) => {
-      const ready = await showSetupGuide(ctx);
-      if (!ready) return;
-
-      const workspaceInput = await ctx.ui.input(
-        "OpenCode Go workspace",
-        "Workspace URL or ID",
-      );
-      if (workspaceInput === undefined) return;
+      const workspaceInput = await promptWorkspace(ctx);
+      if (workspaceInput === null) return;
+      if (workspaceInput === undefined) {
+        ctx.ui.notify(
+          "OpenCode Go setup requires Pi's interactive terminal UI.",
+          "error",
+        );
+        return;
+      }
 
       let workspaceId: string;
       try {
