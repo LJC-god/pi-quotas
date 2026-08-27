@@ -1,5 +1,7 @@
 # @latentminds/pi-quotas
 
+Includes first-class support for the China-region GLM Coding Plan (`zai-coding-cn`).
+
 Quota monitoring for Pi. Shows remaining usage and rate limits for Anthropic, OpenAI Codex, GitHub Copilot, OpenRouter, Synthetic, Grok, Z.ai, OpenCode Go, and Kimi Code — directly in your Pi session.
 
 ## Screenshots
@@ -44,6 +46,7 @@ pi -e npm:@latentminds/pi-quotas
 | `/synthetic:quotas`  | Synthetic quotas only                      |
 | `/grok:quotas`       | Grok quotas only                           |
 | `/zai:quotas`        | Z.ai quotas only                           |
+| `/zai-cn:quotas`     | GLM China quotas only                      |
 | `/opencode-go:quotas`| OpenCode Go quotas only                    |
 | `/kimi:quotas`       | Kimi Code quotas only                      |
 | `/tokens`            | Cross-session token/cost usage            |
@@ -71,7 +74,7 @@ Automatic notifications when projected usage is on track to exceed limits before
 Use `/quotas:settings` to enable or disable:
 
 - Combined `/quotas` command
-- Per-provider commands (`/anthropic:quotas`, `/codex:quotas`, `/github:quotas`, `/openrouter:quotas`, `/synthetic:quotas`, `/grok:quotas`, `/zai:quotas`, `/opencode-go:quotas`, `/kimi:quotas`)
+- Per-provider commands (`/anthropic:quotas`, `/codex:quotas`, `/github:quotas`, `/openrouter:quotas`, `/synthetic:quotas`, `/grok:quotas`, `/zai:quotas`, `/zai-cn:quotas`, `/opencode-go:quotas`, `/kimi:quotas`)
 - Footer status widget
 - Quota warning notifications
 - **Defer to Synthetic** — when both pi-quotas and [pi-synthetic](https://www.npmjs.com/package/@aliou/pi-synthetic) are loaded, pi-quotas hides its own Synthetic footer to avoid showing duplicate quota information. Enabled by default; disable if you prefer to see both footers.
@@ -90,6 +93,7 @@ Settings can be saved globally (`~/.pi/agent/extensions/quotas.json`) or per-pro
 | Synthetic      | Subscription, search/hour, free tools, weekly tokens, 5h limit | Request counts and token budgets; rolling five-hour rate limit; weekly token regen                  |
 | Grok           | Weekly credits, per-product usage, on-demand spend              | SuperGrok credit usage from the xAI CLI billing endpoint                                             |
 | Z.ai           | 5h, 7d, monthly web searches                                  | Token utilisation percentages (rolling 5h/7d windows); monthly web-search count limit               |
+| GLM China      | Session/month coding credits, token windows, monthly tools      | China Coding Plan usage from the BigModel monitor endpoint; absolute credit counts when available    |
 | OpenCode Go    | Rolling 5h, weekly, monthly USD                              | USD spend tracking against tier limits; cross-session token/cost aggregation via the `/tokens` command |
 | Kimi Code      | Rolling 5h, weekly                                           | Coding Plan request allowances with reset times                                                        |
 
@@ -97,6 +101,8 @@ Settings can be saved globally (`~/.pi/agent/extensions/quotas.json`) or per-pro
 ## Credentials
 
 pi-quotas reads existing Pi auth entries from `~/.pi/agent/auth.json`:
+
+- `zai-coding-cn` - Z.ai/GLM China Coding Plan API key (`ZAI_CODING_CN_API_KEY`)
 
 - `anthropic` — Anthropic OAuth token
 - `openai-codex` — Codex access token (also reads `~/.codex/auth.json` for the account ID)
@@ -108,7 +114,7 @@ pi-quotas reads existing Pi auth entries from `~/.pi/agent/auth.json`:
 - `opencode-go` — OpenCode Go workspace ID and auth cookie (set the `OPENCODE_GO_WORKSPACE_ID` and `OPENCODE_GO_AUTH_COOKIE` environment variables, or configure them in the OpenCode Go config file)
 - `kimi-coding` — Kimi Code OAuth access token
 
-No additional setup is required - if Pi can use the provider, pi-quotas can check its quotas. For Synthetic, export `SYNTHETIC_API_KEY` in your shell or Pi environment.
+No additional setup is required - if Pi can use the provider, pi-quotas can check its quotas. Global Z.ai and GLM China are independent providers and both appear when both are configured. The global key is sent only to `api.z.ai` with Bearer authentication; the China key is sent only to `open.bigmodel.cn` using that endpoint's raw `Authorization` format. For Synthetic, export `SYNTHETIC_API_KEY` in your shell or Pi environment.
 
 ## Requirements
 

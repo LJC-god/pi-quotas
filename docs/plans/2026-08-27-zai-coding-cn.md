@@ -69,7 +69,7 @@ Expected: PASS.
 
 **Step 1: Write the failing test**
 
-Parse a representative quota response as `zai-coding-cn` and assert every returned window carries that provider.
+Parse representative token and credit quota responses as `zai-coding-cn`. Assert every returned window carries that provider and that `CREDIT_LIMIT` entries retain their absolute used/limit counts.
 
 **Step 2: Run test to verify it fails**
 
@@ -79,7 +79,7 @@ Expected: FAIL because `parseZaiUsage` currently hard-codes `zai`.
 
 **Step 3: Write minimal implementation**
 
-Give `parseZaiUsage` an optional provider argument defaulting to `zai`, and use it for every generated window.
+Give `parseZaiUsage` an optional provider argument defaulting to `zai`, use it for every generated window, and map China Coding Plan `CREDIT_LIMIT` units to session/month credit windows.
 
 **Step 4: Run test to verify it passes**
 
