@@ -549,6 +549,7 @@ export async function fetchXaiQuotasWithToken(
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        "X-XAI-Token-Auth": "xai-grok-cli",
         Accept: "application/json",
       },
     },
